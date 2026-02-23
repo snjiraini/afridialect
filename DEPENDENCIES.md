@@ -1,6 +1,6 @@
 # Dependencies and Version Compatibility
 
-**Last Updated:** February 22, 2026
+**Last Updated:** February 23, 2026
 
 ## Core Framework Versions
 
@@ -25,6 +25,11 @@
 - **ESLint Config Next:** `15.1.6` (matching Next.js major version)
 - **Prettier:** `3.4.2` (v3 stable)
 
+### Future Dependencies (Phase 2+)
+- **@supabase/supabase-js:** `^2.45.0` (planned)
+- **@supabase/ssr:** `^0.5.0` (planned for Next.js SSR support)
+- **@hashgraph/sdk:** Latest stable (planned for Phase 5)
+
 ## Version Compatibility Notes
 
 ### Why Next.js 16.1.6?
@@ -44,6 +49,12 @@ The original plan was to use Next.js 14.x (as specified in PRD for stability). H
 - There are remaining dev-time vulnerabilities in minimatch (used by ESLint plugins)
 - These are **low-risk** as they only affect development environment (ReDoS vulnerabilities)
 - Impact: Potential regex denial of service during linting (not production)
+
+### Supabase Configuration
+- **Using modern approach:** Publishable keys + Secret API keys
+- **Not using:** Legacy anon_key and service_role_key approach
+- **Rationale:** Better security, enforces RLS by default, aligns with Supabase SSR best practices
+- **Documentation:** See [SUPABASE_CONFIG.md](docs/SUPABASE_CONFIG.md) for implementation guide
 
 ## Known Vulnerabilities
 
