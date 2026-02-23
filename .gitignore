@@ -1,1 +1,194 @@
-node_modules
+# Dependencies
+node_modules/
+/.pnp
+.pnp.js
+.yarn/
+.pnpm-debug.log*
+
+# Testing
+/coverage
+*.lcov
+.nyc_output
+/test-results/
+/playwright-report/
+/playwright/.cache/
+
+# Next.js
+/.next/
+/out/
+.next/
+next-env.d.ts
+
+# Production
+/build
+/dist
+
+# Misc
+.DS_Store
+*.pem
+.AppleDouble
+.LSOverride
+Thumbs.db
+Desktop.ini
+
+# Debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Local env files
+.env
+.env*.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Vercel
+.vercel
+
+# TypeScript
+*.tsbuildinfo
+*.tsbuildinfo.*
+
+# IDE & Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.project
+.classpath
+.settings/
+*.sublime-workspace
+*.sublime-project
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Supabase
+.supabase/
+supabase/.branches
+supabase/.temp
+
+# AWS
+.aws/
+
+# Cache
+.cache/
+.parcel-cache/
+.eslintcache
+.stylelintcache
+
+# Temporary files
+*.tmp
+*.temp
+*.log
+*.pid
+*.seed
+*.pid.lock
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Hedera (private keys)
+*.key
+*.pem
+hedera-keys/
+private-keys/
+
+# IPFS
+.ipfs/
+
+# Audio files (staging - actual files stored in Supabase)
+/temp-uploads/
+/audio-temp/
+
+# Dataset exports (temporary)
+/dataset-exports/
+*.zip
+*.tar.gz
+
+# macOS
+.AppleDouble
+.LSOverride
+Icon
+._*
+
+# Linux
+.fuse_hidden*
+.directory
+.Trash-*
+.nfs*
+
+# Windows
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+*.stackdump
+[Dd]esktop.ini
+$RECYCLE.BIN/
+*.lnk
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# Coverage directory used by tools like istanbul
+coverage/
+*.lcov
+.nyc_output/
+
+# Dependency directories
+jspm_packages/
+bower_components/
+
+# Optional npm cache directory
+.npm
+
+# Optional eslint cache
+.eslintcache
+
+# Optional stylelint cache
+.stylelintcache
+
+# Microbundle cache
+.rpt2_cache/
+.rts2_cache_cjs/
+.rts2_cache_es/
+.rts2_cache_umd/
+
+# Optional REPL history
+.node_repl_history
+
+# Output of 'npm pack'
+*.tgz
+
+# dotenv environment variable files
+.env.backup
+
+# Storybook build outputs
+.out
+.storybook-out
+storybook-static
