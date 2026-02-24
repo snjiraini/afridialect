@@ -3,10 +3,11 @@
 ## Project Rules and Guidelines
 
 ### Documentation Rules
-**CRITICAL:** Only 3 markdown documentation files are allowed in the `docs/` folder:
+**CRITICAL:** Only 4 markdown documentation files are allowed in the `docs/` folder:
 1. `afridialect_prd.md` - Product Requirements Document (DO NOT MODIFY)
 2. `technical_docs.md` - All technical setup, configuration, and implementation details
 3. `phase_progress_and_completion.md` - Detailed phase tracking and completion records
+4. `PROJECT_PROGRESS.md` - High-level project overview and milestone tracking
 
 **Additional allowed files in docs/:**
 - `hedera-kms-policy.json` - IAM policy configuration
@@ -14,11 +15,14 @@
 
 **Rules:**
 - ❌ DO NOT create new markdown files in `docs/`
+- ❌ DO NOT create markdown files in the project root directory
 - ❌ DO NOT create summary documents, completion documents, or temporary docs
-- ✅ Add all new documentation to one of the 3 existing markdown files
+- ✅ Add all new documentation to one of the 4 existing markdown files
 - ✅ Technical details → `technical_docs.md`
-- ✅ Progress tracking → `phase_progress_and_completion.md`
+- ✅ Detailed progress tracking → `phase_progress_and_completion.md`
+- ✅ High-level milestones → `PROJECT_PROGRESS.md`
 - ✅ Never create README.md in docs/ folder
+- ✅ Keep project root clean - only README.md allowed at root level
 
 ### Code Organization
 

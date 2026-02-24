@@ -15,6 +15,162 @@
 
 ---
 
+### Email Configuration
+
+#### Supabase Email Rate Limits
+
+**Free Tier:**
+- 3 emails per hour per email address
+- 30 emails per hour total
+
+**Solutions:**
+1. **For Development:** 
+   - Disable email confirmation in Supabase Dashboard → Authentication → Providers → Email → Confirm email: OFF
+   - Use different email addresses for testing
+   
+2. **For Production:**
+   - Configure custom SMTP (see below)
+   - Upgrade to paid tier for higher limits
+
+#### Configure Custom SMTP (Production)
+
+1. **Get SMTP credentials** (recommended providers):
+   - SendGrid (free tier: 100 emails/day)
+   - AWS SES (0.10 per 1000 emails)
+   - Mailgun, Postmark, etc.
+
+2. **Configure in Supabase:**
+   - Dashboard → Project Settings → Auth → SMTP Settings
+   - Enter SMTP server, port, username, password
+   - Test email delivery
+
+3. **Update email templates:**
+   - Dashboard → Authentication → Email Templates
+   - Customize signup, password reset, magic link templates
+
+#### Disable Email Verification & Domain Validation (Development Only)
+
+**Quick Setup:**
+1. Go to https://supabase.com/dashboard
+2. Select your project
+3. Navigate to **Authentication** → **Settings**
+4. Scroll to **Email Auth** section
+5. Find **"Enable email confirmations"** → **Toggle it OFF**
+6. Find **"Secure email change"** → **Toggle it OFF** (if present)
+7. Find **"Enable domain validation"** or **"Validate email domains"** → **Toggle it OFF**
+8. Click **Save**
+
+**Alternative (if toggle not available):**
+If you don't see a "Validate email domains" toggle, you can work around it by:
+- Using real email domains that have MX records (gmail.com, yahoo.com, outlook.com)
+- Using test email services like:
+  - `user@mailinator.com` (public inbox)
+  - `user@guerrillamail.com` (temporary emails)
+  - `user@10minutemail.com` (disposable emails)
+- Contact Supabase support to disable domain validation for your project
+
+**What This Changes:**
+
+Before (Email Verification Enabled):
+```
+User Signs Up → Email Sent → User Clicks Link → Email Confirmed → User Can Login
+```
+
+After (Email Verification Disabled):
+```
+User Signs Up → User Can Login Immediately ✓
+```
+
+**Current App Implementation:**
+- ✅ Signup redirects directly to dashboard (`/app/auth/signup/page.tsx`)
+- ✅ No email confirmation messages shown in UI
+- ✅ Profile page has no verification warnings (`/app/profile/page.tsx`)
+- ✅ Auth hook configured for immediate access (`/hooks/useAuth.tsx`)
+
+**Testing After Disabling:**
+1. Visit `/auth/signup`
+2. Create account with any email
+3. Should redirect to `/dashboard` immediately
+4. Can login without email verification
+
+**⚠️ Security Note:**
+- Users can signup with any email (even if they don't own it)
+- Higher risk of spam/fake accounts
+- **Recommended:** Only disable for development/testing
+- **For Production:** Keep enabled or use social login (Google, GitHub)
+
+#### Create Test Users (Admin Only)
+
+For testing purposes, admins can create users with **any email address** (doesn't need to exist) using the Admin Panel:
+
+1. **Access:** Go to `/admin/users` (must be logged in as admin)
+2. **Find:** "Create Test User" form at the top
+3. **Features:**
+   - Requires valid email format (user@domain.ext)
+   - Email doesn't need to actually exist
+   - Examples: `testuser123@myemail.com`, `john@example.com`, `test@fake.local`
+   - Auto-confirms email (no verification needed)
+   - Click "Generate" for random test email
+4. **Usage:**
+   ```
+   Email: testuser123@myemail.com  ✅ Valid format
+   Email: test@test.local          ✅ Valid format
+   Email: invalid-email            ❌ Invalid format (no @ or domain)
+   Password: password123
+   Full Name: Test User (optional)
+   ```
+
+**How It Works:**
+- Uses Supabase Admin API (`auth.admin.createUser`)
+- Validates email format but Supabase also checks domain MX records
+- Sets `email_confirm: true` automatically
+- Logs action in audit_logs table
+
+**Workaround for Domain Validation:**
+Since Supabase validates email domains, use one of these approaches:
+
+1. **Use Real Email Domains (Recommended for Testing):**
+   ```
+   test123@gmail.com          ✅ Works (gmail has valid MX records)
+   user456@yahoo.com          ✅ Works (yahoo has valid MX records)
+   demo@outlook.com           ✅ Works (outlook has valid MX records)
+   ```
+
+2. **Use Test Email Services:**
+   ```
+   test@mailinator.com        ✅ Works (public inbox, no password needed)
+   test@guerrillamail.com     ✅ Works (temporary email service)
+   ```
+
+3. **Use Your Actual Domain (if configured):**
+   ```
+   test@afridialect.ai        ✅ Works only if afridialect.ai has MX records
+   ```
+
+**What Won't Work:**
+```
+test@fake.local              ❌ Fails (no MX records)
+test@myemail.com             ❌ Fails (no MX records unless you own domain)
+test@test.test               ❌ Fails (no MX records)
+```
+
+**API Endpoint:**
+```typescript
+POST /api/admin/create-user
+Authorization: Admin role required
+Body: { email: string, password: string, fullName?: string }
+```
+
+**Regular Signup Form:**
+The standard `/auth/signup` form validates email format and domain:
+- Must look like valid email: `user@domain.ext`
+- Domain must have valid DNS/MX records
+- Email doesn't need to exist (won't receive actual emails)
+- Examples: `test@gmail.com`, `demo@yahoo.com`, `user@outlook.com`
+- Use test email services like mailinator.com for throwaway accounts
+
+---
+
 ## 1. Quick Start
 
 ### Prerequisites
@@ -195,6 +351,10 @@ pg_dump -U postgres -h db.xxx.supabase.co -d postgres --data-only > backup_data.
    - Supabase Dashboard → Authentication → Providers
    - Enable "Email" provider
    - Configure email templates
+   - **Disable email confirmation requirement** (Optional):
+     - Go to Authentication → Settings
+     - Under "Email Auth", uncheck "Enable email confirmations"
+     - This allows users to login immediately after signup
 
 2. **Configure OAuth Providers (Optional)**
    - Google OAuth

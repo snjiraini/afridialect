@@ -24,9 +24,18 @@ export default function LoginPage() {
     setLoading(true)
 
     try {
-      await signIn(email, password)
+      console.log('Attempting login with email:', email)
+      const { error: signInError } = await signIn(email, password)
+      
+      if (signInError) {
+        console.error('Login error:', signInError)
+        throw signInError
+      }
+      
+      console.log('Login successful, redirecting to dashboard')
       router.push('/dashboard')
     } catch (err) {
+      console.error('Login catch block error:', err)
       setError(err instanceof Error ? err.message : 'Failed to sign in')
     } finally {
       setLoading(false)
@@ -37,10 +46,10 @@ export default function LoginPage() {
     <div className="min-h-[80vh] flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full space-y-8">
         <div>
-          <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900 dark:text-white">
+          <h2 className="mt-6 text-center text-3xl font-extrabold text-black dark:text-white">
             Sign in to your account
           </h2>
-          <p className="mt-2 text-center text-sm text-gray-600 dark:text-gray-400">
+          <p className="mt-2 text-center text-sm text-black dark:text-gray-300">
             Or{' '}
             <Link
               href="/auth/signup"
@@ -58,9 +67,9 @@ export default function LoginPage() {
             </div>
           )}
 
-          <div className="rounded-md shadow-sm -space-y-px">
+          <div className="space-y-4">
             <div>
-              <label htmlFor="email" className="sr-only">
+              <label htmlFor="email" className="block text-sm font-bold text-black dark:text-white mb-2">
                 Email address
               </label>
               <input
@@ -71,12 +80,12 @@ export default function LoginPage() {
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 dark:border-gray-700 placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 dark:text-white bg-white dark:bg-gray-800 rounded-t-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
+                className="appearance-none relative block w-full px-3 py-2 border border-gray-300 dark:border-gray-700 placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 dark:text-white bg-white dark:bg-gray-800 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
                 placeholder="Email address"
               />
             </div>
             <div>
-              <label htmlFor="password" className="sr-only">
+              <label htmlFor="password" className="block text-sm font-bold text-black dark:text-white mb-2">
                 Password
               </label>
               <input
@@ -87,7 +96,7 @@ export default function LoginPage() {
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 dark:border-gray-700 placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 dark:text-white bg-white dark:bg-gray-800 rounded-b-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
+                className="appearance-none relative block w-full px-3 py-2 border border-gray-300 dark:border-gray-700 placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 dark:text-white bg-white dark:bg-gray-800 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
                 placeholder="Password"
               />
             </div>
@@ -103,7 +112,7 @@ export default function LoginPage() {
               />
               <label
                 htmlFor="remember-me"
-                className="ml-2 block text-sm text-gray-900 dark:text-gray-300"
+                className="ml-2 block text-sm font-bold text-black dark:text-white"
               >
                 Remember me
               </label>

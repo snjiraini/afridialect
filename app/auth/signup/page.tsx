@@ -6,23 +6,23 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useAuth } from '@/hooks/useAuth'
 
 export default function SignupPage() {
+  const router = useRouter()
   const { signUp } = useAuth()
   const [fullName, setFullName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
-  const [success, setSuccess] = useState(false)
   const [loading, setLoading] = useState(false)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
-    setSuccess(false)
 
     // Validation
     if (password !== confirmPassword) {
@@ -43,39 +43,27 @@ export default function SignupPage() {
     setLoading(true)
 
     try {
-      await signUp(email, password, fullName)
-      setSuccess(true)
+      const { error: signUpError } = await signUp(email, password, fullName)
+      
+      if (signUpError) {
+        // Handle specific error cases
+        if (signUpError.message.includes('rate limit')) {
+          setError('⏱️ Too many signup attempts. Please try again in an hour, or use a different email address.')
+        } else if (signUpError.message.includes('already registered')) {
+          setError('📧 This email is already registered. Try logging in instead.')
+        } else {
+          setError(signUpError.message)
+        }
+        return
+      }
+      
+      // Redirect to dashboard immediately after successful signup
+      router.push('/dashboard')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create account')
     } finally {
       setLoading(false)
     }
-  }
-
-  if (success) {
-    return (
-      <div className="min-h-[80vh] flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-md w-full space-y-8">
-          <div className="rounded-md bg-green-50 dark:bg-green-900/20 p-6">
-            <h2 className="text-xl font-bold text-green-800 dark:text-green-400 mb-2">
-              Check your email
-            </h2>
-            <p className="text-sm text-green-700 dark:text-green-300">
-              We've sent you a confirmation email. Please click the link in the email to
-              activate your account.
-            </p>
-            <p className="text-sm text-green-700 dark:text-green-300 mt-4">
-              <Link
-                href="/auth/login"
-                className="font-medium underline hover:no-underline"
-              >
-                Return to login
-              </Link>
-            </p>
-          </div>
-        </div>
-      </div>
-    )
   }
 
   return (
@@ -94,6 +82,11 @@ export default function SignupPage() {
               sign in to your existing account
             </Link>
           </p>
+          <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-500 rounded-lg">
+            <p className="text-xs text-blue-800 dark:text-blue-400 text-center">
+              💡 Use email with valid domain (e.g., test123@gmail.com, user@yahoo.com)
+            </p>
+          </div>
         </div>
 
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>

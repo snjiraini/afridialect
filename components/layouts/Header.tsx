@@ -1,6 +1,18 @@
+'use client'
+
 import Link from 'next/link'
+import { useAuth } from '@/hooks/useAuth'
+import { useRouter } from 'next/navigation'
 
 export default function Header() {
+  const { user, signOut } = useAuth()
+  const router = useRouter()
+
+  const handleSignOut = async () => {
+    await signOut()
+    router.push('/')
+  }
+
   return (
     <header className="sticky top-0 z-50 bg-white/80 backdrop-blur-md border-b border-gray-100 shadow-soft-sm">
       <div className="container-modern">
@@ -77,18 +89,40 @@ export default function Header() {
             </button>
 
             {/* Auth Buttons */}
-            <Link
-              href="/auth/login"
-              className="hidden sm:block px-4 py-2 rounded-xl text-gray-700 hover:bg-gray-50 font-medium transition-colors"
-            >
-              Login
-            </Link>
-            <Link
-              href="/auth/signup"
-              className="btn-primary"
-            >
-              Sign Up
-            </Link>
+            {user ? (
+              <>
+                <Link
+                  href="/profile"
+                  className="hidden sm:flex items-center gap-2 px-4 py-2 rounded-xl text-gray-700 hover:bg-gray-50 font-medium transition-colors"
+                >
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                  </svg>
+                  <span className="max-w-[100px] truncate">{user.email?.split('@')[0]}</span>
+                </Link>
+                <button
+                  onClick={handleSignOut}
+                  className="px-4 py-2 rounded-xl text-gray-700 hover:bg-red-50 hover:text-red-600 font-medium transition-colors"
+                >
+                  Sign Out
+                </button>
+              </>
+            ) : (
+              <>
+                <Link
+                  href="/auth/login"
+                  className="hidden sm:block px-4 py-2 rounded-xl text-gray-700 hover:bg-gray-50 font-medium transition-colors"
+                >
+                  Login
+                </Link>
+                <Link
+                  href="/auth/signup"
+                  className="btn-primary"
+                >
+                  Sign Up
+                </Link>
+              </>
+            )}
           </div>
         </div>
       </div>

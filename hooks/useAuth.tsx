@@ -51,19 +51,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signIn = async (email: string, password: string) => {
     try {
-      const { error } = await supabase.auth.signInWithPassword({
+      console.log('signIn: Starting authentication for', email)
+      const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
       })
+      
+      if (error) {
+        console.error('signIn: Authentication error:', error)
+      } else {
+        console.log('signIn: Authentication successful', data)
+      }
+      
       return { error }
     } catch (error) {
+      console.error('signIn: Caught exception:', error)
       return { error: error as Error }
     }
   }
 
   const signUp = async (email: string, password: string, fullName: string) => {
     try {
-      const { error } = await supabase.auth.signUp({
+      console.log('signUp: Creating account for', email)
+      const { data, error } = await supabase.auth.signUp({
         email,
         password,
         options: {
@@ -71,10 +81,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             full_name: fullName,
           },
           emailRedirectTo: `${window.location.origin}/auth/callback`,
+          // Disable email confirmation requirement
+          // Note: This requires "Enable email confirmations" to be OFF in Supabase Dashboard
+          // Or configure autoConfirm in your Supabase project settings
         },
       })
+      
+      if (error) {
+        console.error('signUp: Registration error:', error)
+      } else {
+        console.log('signUp: Registration successful', data)
+        console.log('signUp: User confirmed?', data.user?.email_confirmed_at)
+      }
+      
       return { error }
     } catch (error) {
+      console.error('signUp: Caught exception:', error)
       return { error: error as Error }
     }
   }

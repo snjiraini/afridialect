@@ -6,6 +6,7 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import Link from 'next/link'
+import CreateTestUserForm from '../components/CreateTestUserForm'
 
 export default async function AdminUsersPage() {
   const supabase = await createClient()
@@ -92,6 +93,11 @@ export default async function AdminUsersPage() {
               }).length || 0}
             </p>
           </div>
+        </div>
+
+        {/* Create Test User Form */}
+        <div className="mb-8">
+          <CreateTestUserForm />
         </div>
 
         {/* Users Table */}

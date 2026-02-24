@@ -56,26 +56,6 @@ export default async function ProfilePage() {
           </Link>
         </div>
 
-        {/* Email Verification Status */}
-        {!session.user.email_confirmed_at && (
-          <div className="mb-6 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-500 rounded-lg p-4">
-            <h3 className="text-yellow-800 dark:text-yellow-400 font-semibold mb-2">
-              ⚠️ Email Not Verified
-            </h3>
-            <p className="text-yellow-700 dark:text-yellow-300 text-sm mb-3">
-              Please check your email and click the confirmation link to verify your account.
-            </p>
-            <form action="/api/auth/resend-verification" method="POST">
-              <button
-                type="submit"
-                className="text-sm px-3 py-1 bg-yellow-600 text-white rounded hover:bg-yellow-700"
-              >
-                Resend Verification Email
-              </button>
-            </form>
-          </div>
-        )}
-
         {/* Basic Information */}
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 mb-6">
           <h2 className="text-2xl font-semibold text-gray-900 dark:text-white mb-4">
@@ -97,11 +77,6 @@ export default async function ProfilePage() {
               <p className="text-lg text-gray-900 dark:text-white">
                 {profile?.email}
               </p>
-              {session.user.email_confirmed_at && (
-                <span className="inline-block mt-1 text-xs px-2 py-1 bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-400 rounded">
-                  ✓ Verified
-                </span>
-              )}
             </div>
             <div>
               <label className="text-sm font-medium text-gray-500 dark:text-gray-400">
