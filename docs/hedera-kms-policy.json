@@ -2,14 +2,40 @@
     "Version": "2012-10-17",
     "Statement": [
         {
+            "Sid": "AllowKMSKeyManagement",
+            "Effect": "Allow",
+            "Action": [
+                "kms:CreateKey",
+                "kms:CreateAlias",
+                "kms:DeleteAlias",
+                "kms:DescribeKey",
+                "kms:GetPublicKey",
+                "kms:GetKeyPolicy",
+                "kms:GetKeyRotationStatus",
+                "kms:ListAliases",
+                "kms:ListKeys",
+                "kms:ListResourceTags",
+                "kms:TagResource",
+                "kms:UntagResource",
+                "kms:UpdateAlias",
+                "kms:ScheduleKeyDeletion",
+                "kms:CancelKeyDeletion"
+            ],
+            "Resource": "*"
+        },
+        {
             "Sid": "AllowKMSSigning",
             "Effect": "Allow",
             "Action": [
                 "kms:Sign",
-                "kms:GetPublicKey",
-                "kms:DescribeKey"
+                "kms:Verify"
             ],
-            "Resource": "*"
+            "Resource": "*",
+            "Condition": {
+                "StringEquals": {
+                    "kms:SigningAlgorithm": "ECDSA_SHA_256"
+                }
+            }
         }
     ]
 }

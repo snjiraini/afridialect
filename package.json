@@ -12,9 +12,13 @@
     "format:check": "prettier --check \"**/*.{js,jsx,ts,tsx,json,css,md}\"",
     "type-check": "tsc --noEmit",
     "test:db": "node scripts/test-database.js",
+    "test:auth": "node scripts/test-auth.js",
+    "test:hedera": "./scripts/test-hedera-config.sh",
     "db:setup": "echo '⚠️  Please run SQL files manually in Supabase Dashboard. See docs/DATABASE_SETUP.md'"
   },
   "dependencies": {
+    "@aws-sdk/client-kms": "^3.995.0",
+    "@hashgraph/sdk": "^2.80.0",
     "@supabase/ssr": "^0.8.0",
     "@supabase/supabase-js": "^2.97.0",
     "dotenv": "^17.3.1",
