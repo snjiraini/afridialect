@@ -32,6 +32,12 @@ export default function Header() {
               Dashboard
             </Link>
             <Link 
+              href="/profile" 
+              className="px-4 py-2 rounded-xl text-gray-600 hover:text-gray-900 hover:bg-gray-50 font-medium transition-all duration-200"
+            >
+              Profile
+            </Link>
+            <Link 
               href="/marketplace" 
               className="px-4 py-2 rounded-xl text-gray-600 hover:text-gray-900 hover:bg-gray-50 font-medium transition-all duration-200"
             >
@@ -41,16 +47,10 @@ export default function Header() {
               </div>
             </Link>
             <Link 
-              href="/contribute" 
+              href="/admin" 
               className="px-4 py-2 rounded-xl text-gray-600 hover:text-gray-900 hover:bg-gray-50 font-medium transition-all duration-200"
             >
-              Contribute
-            </Link>
-            <Link 
-              href="/about" 
-              className="px-4 py-2 rounded-xl text-gray-600 hover:text-gray-900 hover:bg-gray-50 font-medium transition-all duration-200"
-            >
-              About
+              Admin
             </Link>
           </nav>
 
