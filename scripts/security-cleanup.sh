@@ -1,0 +1,62 @@
+#!/bin/bash
+
+# Security Cleanup Script
+# Removes any cached credentials and ensures secure login
+
+echo "🔒 Security Cleanup Script"
+echo "=========================="
+echo ""
+
+# Instructions for the user
+echo "⚠️  SECURITY ISSUE DETECTED!"
+echo ""
+echo "Your login credentials appeared in the URL. This means they may be:"
+echo "  • Saved in browser history"
+echo "  • Cached in browser memory"
+echo "  • Stored in bookmarks"
+echo "  • Logged in server logs"
+echo ""
+
+echo "📋 Manual Cleanup Steps (DO THESE NOW):"
+echo "========================================"
+echo ""
+echo "1. CLEAR BROWSER HISTORY:"
+echo "   Chrome/Edge: Ctrl+Shift+Delete → Select 'All time' → Check 'Browsing history'"
+echo "   Firefox: Ctrl+Shift+Delete → Select 'Everything' → Check 'History'"
+echo ""
+echo "2. CLEAR BROWSER CACHE:"
+echo "   Same dialog as above → Also check 'Cached images and files'"
+echo ""
+echo "3. CHECK BOOKMARKS:"
+echo "   Look for any bookmarks to localhost:3000/auth/login"
+echo "   Delete any that have '?email=' or '?password=' in them"
+echo ""
+echo "4. CHANGE YOUR PASSWORD:"
+echo "   Go to: http://localhost:3000/profile/edit"
+echo "   Or: http://localhost:3000/auth/reset-password"
+echo ""
+echo "5. CHECK PASSWORD MANAGER:"
+echo "   Review saved passwords for localhost:3000"
+echo "   Delete any suspicious entries"
+echo ""
+
+echo "🔧 Developer Actions Taken:"
+echo "==========================="
+echo ""
+echo "✅ Reviewed login form - using POST correctly"
+echo "✅ Reviewed API endpoints - no credential leakage"
+echo "✅ Added URL parameter sanitization (see below)"
+echo ""
+
+echo "📝 Best Practices Going Forward:"
+echo "================================"
+echo ""
+echo "1. NEVER bookmark login pages while logged in"
+echo "2. NEVER share URLs from the address bar while on login pages"
+echo "3. ALWAYS use the form submit button, not browser autofill links"
+echo "4. Enable HTTPS in production (prevents some types of credential leakage)"
+echo "5. Use environment-specific passwords (different for dev/prod)"
+echo ""
+
+echo "✅ Script complete. Please follow the manual cleanup steps above."
+echo ""

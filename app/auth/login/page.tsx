@@ -5,21 +5,35 @@
 
 'use client'
 
-import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useState, useEffect, Suspense } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { useAuth } from '@/hooks/useAuth'
 
-export default function LoginPage() {
+function LoginForm() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const { signIn } = useAuth()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  
+  // Security: Detect and warn about credentials in URL
+  useEffect(() => {
+    const hasEmailParam = searchParams.get('email')
+    const hasPasswordParam = searchParams.get('password')
+    
+    if (hasEmailParam || hasPasswordParam) {
+      setError('⚠️ SECURITY WARNING: Never put credentials in URLs! Please clear your browser history.')
+      // Clear the URL without credentials
+      router.replace('/auth/login')
+    }
+  }, [searchParams, router])
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
+    e.stopPropagation()
     setError(null)
     setLoading(true)
 
@@ -60,7 +74,12 @@ export default function LoginPage() {
           </p>
         </div>
 
-        <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
+        <form 
+          className="mt-8 space-y-6" 
+          onSubmit={handleSubmit}
+          method="post"
+          action="#"
+        >
           {error && (
             <div className="rounded-md bg-red-50 dark:bg-red-900/20 p-4">
               <p className="text-sm text-red-800 dark:text-red-400">{error}</p>
@@ -140,5 +159,20 @@ export default function LoginPage() {
         </form>
       </div>
     </div>
+  )
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-[80vh] flex items-center justify-center">
+        <div className="text-center">
+          <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 dark:border-white"></div>
+          <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">Loading...</p>
+        </div>
+      </div>
+    }>
+      <LoginForm />
+    </Suspense>
   )
 }

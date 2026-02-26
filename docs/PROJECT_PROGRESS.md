@@ -2,7 +2,8 @@
 
 **Project Start Date:** February 21, 2026  
 **Status:** In Progress  
-**Current Phase:** Phase 1 - Project Setup & Foundation
+**Current Phase:** Phase 5 - Transcription Workflow  
+**Overall Progress:** 55%
 
 ---
 
@@ -16,8 +17,8 @@
 
 ---
 
-### 🔄 **Phase 1: Project Setup & Foundation**
-**Status:** ✅ Completed  
+### ✅ **Phase 1: Project Setup & Foundation**
+**Status:** ✅ Completed (100%)  
 **Completion Date:** February 23, 2026
 
 #### Tasks:
@@ -47,7 +48,7 @@
 ---
 
 ### ✅ **Phase 2: Database Schema**
-**Status:** Completed  
+**Status:** ✅ Completed (100%)  
 **Completion Date:** February 23, 2026
 
 #### Tasks:
@@ -79,7 +80,7 @@
 
 ---
 
-### 🔄 **Phase 3: Authentication & User Management**
+### ✅ **Phase 3: Authentication & User Management**
 **Status:** ✅ Completed (100%)  
 **Start Date:** February 23, 2026  
 **Completion Date:** February 24, 2026
@@ -97,6 +98,93 @@
 - [x] Implement protected routes
 - [x] Build authentication context and hooks
 - [x] Create dashboard with profile display
+
+#### Sub-Phase 3.2: Hedera Account Integration ✅ Complete
+**Completion Date:** February 24, 2026
+- [x] Set up AWS KMS integration
+- [x] Implement Hedera account creation flow
+- [x] Create ThresholdKey (2-of-2) custody model
+- [x] Generate per-user KMS keys (ECC_SECG_P256K1)
+- [x] Implement DER key conversion
+- [x] Create Hedera accounts with 1 HBAR initial balance
+- [x] Store account IDs and KMS key IDs in database
+- [x] Test account creation flow
+
+#### Sub-Phase 3.3: Profile & Admin Pages ✅ Complete
+**Completion Date:** February 24, 2026
+- [x] Create profile page with Hedera account display
+- [x] Build profile edit page
+- [x] Create admin dashboard
+- [x] Implement user management interface
+- [x] Add role assignment UI
+- [x] Create test user creation form
+- [x] Build user detail view
+
+---
+
+### 🔄 **Phase 4: Audio Upload & Processing**
+**Status:** 🔄 In Progress (70% complete)  
+**Start Date:** February 24, 2026
+
+#### Sub-Phase 4.1: Storage Configuration ✅ Complete
+- [x] Create Supabase Storage buckets
+  - [x] audio-staging (50MB limit)
+  - [x] transcript-staging (5MB limit)
+  - [x] translation-staging (5MB limit)
+  - [x] dataset-exports (50MB limit)
+- [x] Write storage.sql with RLS policies
+- [x] Create bucket setup script
+- [ ] Apply RLS policies (manual step required)
+
+#### Sub-Phase 4.2: Upload Interface ✅ Complete
+- [x] Create uploader page with role check
+- [x] Build drag-and-drop upload component
+- [x] Implement file validation (type, size)
+- [x] Add audio preview player
+- [x] Create metadata form (dialect, speaker info)
+- [x] Add progress tracking
+- [x] Implement error handling
+
+#### Sub-Phase 4.3: Processing Pipeline 🔄 Partial
+- [x] Create upload API endpoint
+- [x] Implement session authentication
+- [x] Add role validation (uploader required)
+- [x] Validate file type and size
+- [x] Generate UUID-based filenames
+- [x] Upload to Supabase Storage
+- [x] Create database records
+- [x] Add audit logging
+- [ ] Implement audio duration detection (placeholder currently)
+- [ ] Add automatic chunking for long files (>40s)
+
+#### Sub-Phase 4.4: IPFS Integration ⏳ Pending
+- [ ] Set up Pinata account and API keys
+- [ ] Implement IPFS upload after Supabase upload
+- [ ] Store IPFS CIDs in database
+- [ ] Add IPFS retrieval functionality
+
+#### Deliverables:
+- [x] `/app/uploader/page.tsx` - Uploader dashboard (165 lines)
+- [x] `/app/uploader/components/AudioUploadForm.tsx` - Upload form (404 lines)
+- [x] `/app/api/audio/upload/route.ts` - Upload API (218 lines)
+- [x] `/lib/supabase/storage.sql` - Storage configuration (300 lines)
+- [x] `/scripts/setup-storage-buckets.js` - Bucket creation script
+- [x] `/docs/PHASE_4_SETUP.md` - Setup and testing guide
+
+#### Blockers:
+- RLS policies must be applied manually in Supabase Dashboard (SQL Editor)
+- Audio duration detection requires server-side processing library
+- IPFS integration pending Pinata account setup
+
+#### Next Steps:
+1. Apply storage RLS policies manually
+2. Test upload workflow with real audio files
+3. Implement audio duration detection
+4. Add automatic chunking for long files
+5. Integrate IPFS/Pinata
+6. Generate waveforms (optional enhancement)
+
+---
 
 #### Sub-Phase 3.2: Hedera Integration ✅ Complete
 **Completion Date:** February 24, 2026
@@ -140,32 +228,73 @@
 
 ---
 
-### ⏳ **Phase 4: Storage & Upload Pipeline**
-**Status:** Not Started  
-**Target Completion:** TBD
+### ✅ **Phase 4: Audio Upload & Processing**
+**Status:** ✅ Completed (MVP) - 100%  
+**Start Date:** February 24, 2026  
+**Completion Date:** February 26, 2026
 
-#### Tasks:
-- [ ] Configure Supabase Storage buckets
-  - [ ] audio-staging (private)
-  - [ ] transcript-staging (private)
-  - [ ] translation-staging (private)
-  - [ ] dataset-exports (private, signed URLs)
-- [ ] Implement audio upload with validation
-- [ ] Create automatic chunking logic (30-40s clips)
-- [ ] Set up RLS policies for storage buckets
-- [ ] Build upload progress UI
-- [ ] Implement file format validation
-- [ ] Create uploader dashboard
+#### Sub-Phase 4.1: Storage Configuration ✅ Complete
+- [x] Create Supabase Storage buckets via API
+  - [x] audio-staging (50MB limit, private)
+  - [x] transcript-staging (5MB limit, private)
+  - [x] translation-staging (5MB limit, private)
+  - [x] dataset-exports (50MB limit, private)
+- [x] Apply RLS policies for storage.objects
+- [x] Configure file size and type validation
+- [x] Set up storage helper scripts
+
+#### Sub-Phase 4.2: Upload Interface ✅ Complete
+- [x] Build drag-and-drop upload component
+- [x] Implement file validation (type, size, format)
+- [x] Create audio preview player
+- [x] Build metadata form (dialect, speaker info)
+- [x] Add progress indicators
+- [x] Implement error handling and user feedback
+- [x] Create uploader dashboard with role check
+
+#### Sub-Phase 4.3: Processing Pipeline ✅ Complete (MVP)
+- [x] Create POST /api/audio/upload endpoint
+- [x] Implement session authentication
+- [x] Add role validation (uploader required)
+- [x] Validate file type and size
+- [x] Generate UUID-based filenames
+- [x] Upload to Supabase Storage
+- [x] Create database records in audio_clips
+- [x] Add audit logging
+- [x] Organize files by user_id/clip_id structure
+
+#### Additional Improvements ✅ Complete
+- [x] Automatic uploader role assignment on signup
+- [x] Updated database trigger (handle_new_user)
+- [x] Created admin user creation script
+- [x] Fixed login form security (Suspense boundary)
+- [x] Created storage bucket setup script
+- [x] Created RLS policy application script
+- [x] Documentation consolidated and cleaned up
 
 #### Deliverables:
-- [ ] Functional audio upload system
-- [ ] Automatic chunking for long files
-- [ ] Secure storage with RLS
-- [ ] Uploader UI and dashboard
+- [x] Functional audio upload system ✅
+- [x] Secure storage with RLS ✅
+- [x] Uploader UI and dashboard ✅
+- [x] Database integration complete ✅
+- [x] Audit logging implemented ✅
+- [ ] Automatic chunking (deferred to Phase 4.5)
+- [ ] Audio duration detection (deferred to Phase 4.5)
+- [ ] IPFS integration (deferred to Phase 8)
+
+#### Testing Completed:
+- [x] Admin user creation
+- [x] Automatic role assignment
+- [x] User signup and login flows
+- [x] Storage bucket creation
+- [x] RLS policy enforcement
+- [x] File upload with metadata
+- [x] Database record creation
+- [x] Storage file verification
 
 ---
 
-### ⏳ **Phase 5: Workflow Engine**
+### ⏳ **Phase 5: Transcription Workflow**
 **Status:** Not Started  
 **Target Completion:** TBD
 

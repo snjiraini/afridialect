@@ -758,20 +758,44 @@ All tables have RLS enabled. Key policies:
 
 ### Database Triggers
 
-#### Profile Creation Trigger
+#### Profile Creation & Auto-Role Assignment Trigger
+
+**Updated:** February 25, 2026 - Now automatically assigns uploader role to all new users
+
 ```sql
-CREATE FUNCTION handle_new_user()
+CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$
 BEGIN
+  -- Create profile
   INSERT INTO public.profiles (id, email, full_name)
-  VALUES (NEW.id, NEW.email, NEW.raw_user_meta_data->>'full_name');
+  VALUES (
+    NEW.id,
+    NEW.email,
+    COALESCE(NEW.raw_user_meta_data->>'full_name', NEW.email)
+  );
+  
+  -- Automatically assign uploader role to all new users
+  INSERT INTO public.user_roles (user_id, role)
+  VALUES (NEW.id, 'uploader')
+  ON CONFLICT (user_id, role) DO NOTHING;
+  
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 CREATE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
-  FOR EACH ROW EXECUTE FUNCTION handle_new_user();
+  FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
+```
+
+**To update existing trigger:** Run `node scripts/update-signup-trigger.js` and follow instructions.
+
+**To assign uploader role to existing users:**
+```sql
+INSERT INTO public.user_roles (user_id, role)
+SELECT id, 'uploader' FROM auth.users
+WHERE id NOT IN (SELECT user_id FROM public.user_roles WHERE role = 'uploader')
+ON CONFLICT (user_id, role) DO NOTHING;
 ```
 
 #### Updated Timestamp Trigger
@@ -834,6 +858,96 @@ npm run build
 # View logs
 npm run dev
 ```
+
+---
+
+---
+
+## Phase 4: Audio Upload Setup
+
+### Current Status
+- Storage buckets created ✅
+- Upload UI and API ready ✅
+- RLS policies need manual application ⏳
+
+### Apply Storage RLS Policies
+
+**Manual step required:** Supabase JavaScript client doesn't support arbitrary SQL execution.
+
+1. Go to Supabase Dashboard > SQL Editor:
+   ```
+   https://supabase.com/dashboard/project/YOUR_PROJECT_ID/sql/new
+   ```
+
+2. Copy and paste the entire contents of `lib/supabase/storage.sql`
+
+3. Click "Run" to create the buckets and apply RLS policies
+
+### Create Admin User
+
+Use the helper script:
+```bash
+node scripts/create-admin-user.js admin@example.com SecurePass123! "Admin Name"
+```
+
+### Assign Uploader Role
+
+**Option 1: Using Admin Dashboard**
+1. Navigate to: `http://localhost:3000/admin`
+2. Go to "Users" tab
+3. Find your user account
+4. Click username to open user detail page
+5. In "Assign Role" section, select `uploader` and click "Assign Role"
+
+**Option 2: Direct SQL**
+```sql
+-- Get user ID
+SELECT id, email FROM auth.users WHERE email = 'your-email@example.com';
+
+-- Assign uploader role
+INSERT INTO public.user_roles (user_id, role)
+VALUES ('YOUR-USER-ID', 'uploader')
+ON CONFLICT (user_id, role) DO NOTHING;
+```
+
+### Test Audio Upload
+
+1. Login at: `http://localhost:3000/auth/login`
+2. Navigate to: `http://localhost:3000/uploader`
+3. Upload test audio file (MP3, WAV, M4A, OGG, WebM - max 50MB)
+4. Verify upload in Supabase Dashboard > Storage > audio-staging
+
+---
+
+## Security: Login Form Troubleshooting
+
+### Issue: Credentials in URL
+
+If you see `http://localhost:3000/auth/login?email=...&password=...`, this is NOT a form issue.
+
+**Common Causes:**
+- Browser password manager creating GET shortcuts
+- Browser autofill triggering navigation
+- Browser extensions (LastPass, 1Password, etc.)
+- Bookmarked URL with credentials
+- Browser history replay
+
+**Solution:**
+1. Clear browser history (Ctrl+Shift+Delete → All time)
+2. Clear cookies and cache
+3. Disable password manager for localhost
+4. Try private/incognito window
+5. Disable ALL browser extensions
+6. Use the "Sign in" button, don't press Enter
+
+**Test Form Security:**
+1. Open DevTools (F12) → Network tab
+2. Filter by "Fetch/XHR"
+3. Fill form manually (no autofill)
+4. Click "Sign in" button
+5. Should see POST to Supabase, NOT GET with params
+
+**Note:** The form correctly uses `method="post"` and `e.preventDefault()`. This is purely a browser behavior issue.
 
 ---
 

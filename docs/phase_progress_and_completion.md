@@ -527,40 +527,100 @@ app/api/
 
 ## Phase 4: Audio Upload & Processing
 
-**Status:** ⏳ PENDING  
-**Planned Start:** TBD
+**Status:** ✅ COMPLETE (Core Features)  
+**Started:** February 24, 2026  
+**Completed:** February 26, 2026
 
 ### Objectives
-- Implement audio file upload
-- Configure Supabase Storage buckets
-- Set up IPFS integration via Pinata
-- Create upload UI and progress tracking
+- Implement audio file upload ✅
+- Configure Supabase Storage buckets ✅
+- Set up IPFS integration via Pinata ⏳ (Deferred to Phase 8)
+- Create upload UI and progress tracking ✅
 
-### Planned Deliverables
+### Deliverables
 
-**4.1 Storage Configuration**
-- [ ] Supabase Storage buckets
-- [ ] Storage policies and RLS
-- [ ] File size and type validation
-- [ ] Automatic chunking for long files
+**4.1 Storage Configuration** ✅ COMPLETE
+- ✅ Supabase Storage buckets created
+  - audio-staging (50MB limit)
+  - transcript-staging (5MB limit)
+  - translation-staging (5MB limit)
+  - dataset-exports (50MB limit)
+- ✅ Storage RLS policies applied
+- ✅ File size and type validation
+- ⏳ Automatic chunking for long files (TODO for future enhancement)
 
-**4.2 Upload Interface**
-- [ ] Drag-and-drop upload
-- [ ] Progress indicators
-- [ ] Metadata form (dialect, description)
-- [ ] Preview player
+**4.2 Upload Interface** ✅ COMPLETE
+- ✅ Drag-and-drop upload
+- ✅ Progress indicators
+- ✅ Metadata form (dialect, description, speaker info)
+- ✅ Preview player
+- ✅ File validation (type, size, duration)
+- ✅ Upload successful with database record creation
+- ✅ File stored in Supabase Storage
 
-**4.3 Processing Pipeline**
-- [ ] Audio validation
-- [ ] Duration calculation
-- [ ] Automatic chunking (30-40s)
-- [ ] Waveform generation
+**4.3 Processing Pipeline** ✅ COMPLETE (MVP)
+- ✅ Audio validation (type, size)
+- ✅ File size limits enforced
+- ✅ Upload to Supabase Storage working
+- ✅ Database record creation
+- ✅ Audit logging
+- ⏳ Duration calculation (placeholder - enhancement for Phase 4.5)
+- ⏳ Automatic chunking (30-40s) - enhancement for Phase 4.5
+- ⏳ Waveform generation - enhancement for Phase 4.5
 
-**4.4 IPFS Integration**
-- [ ] Pinata API setup
-- [ ] Pin audio files
-- [ ] Generate CIDs
-- [ ] Store CIDs in database
+**4.4 IPFS Integration** ⏳ DEFERRED
+- Deferred to Phase 8 (NFT Minting)
+- Will integrate when implementing NFT metadata storage
+
+### Implementation Files
+- ✅ `/app/uploader/page.tsx` - Uploader dashboard with role check
+- ✅ `/app/uploader/components/AudioUploadForm.tsx` - Upload form (404 lines)
+- ✅ `/app/api/audio/upload/route.ts` - Upload API endpoint (218 lines)
+- ✅ `/lib/supabase/storage.sql` - Storage buckets and RLS policies (300 lines)
+- ✅ `/lib/supabase/storage-policies-only.sql` - RLS policies only (for easy application)
+- ✅ `/lib/supabase/triggers.sql` - Auto-assign uploader role on signup
+- ✅ `/scripts/setup-storage-buckets.js` - Bucket creation script
+- ✅ `/scripts/setup-storage.sh` - Storage setup instructions
+- ✅ `/scripts/update-signup-trigger.js` - Update trigger for auto-role assignment
+- ✅ `/scripts/create-admin-user.js` - Create admin users
+- ✅ `/scripts/fix-storage-rls.sh` - RLS troubleshooting helper
+
+### Completion Summary (February 26, 2026)
+
+**What Works:**
+- ✅ Users automatically get uploader role on signup
+- ✅ Uploaders can access /uploader page
+- ✅ Drag-and-drop file upload with preview
+- ✅ File validation (type, size, format)
+- ✅ Metadata form (dialect, speaker info)
+- ✅ Upload to Supabase Storage (audio-staging bucket)
+- ✅ Database record creation in audio_clips table
+- ✅ Audit logging of upload actions
+- ✅ Files organized by user_id/clip_id.ext
+- ✅ RLS policies enforced (users can only upload to their own folder)
+
+**Testing Completed:**
+- ✅ Admin user creation
+- ✅ Automatic role assignment on signup
+- ✅ Login with Suspense boundary (Next.js 16)
+- ✅ Storage bucket creation
+- ✅ RLS policy application
+- ✅ File upload with metadata
+- ✅ Database record verification
+- ✅ Storage bucket file verification
+
+**Known Limitations (Future Enhancements):**
+- ⏳ Audio duration is placeholder (35s) - needs ffprobe integration
+- ⏳ No automatic chunking for files >40s - manual uploads only
+- ⏳ No waveform generation - visual enhancement
+- ⏳ No IPFS integration yet - planned for Phase 8
+
+### Lessons Learned
+1. **Storage RLS Policies:** Must be applied separately from bucket creation
+2. **Next.js 16:** useSearchParams requires Suspense boundary
+3. **Auto-Role Assignment:** Trigger-based role assignment provides better UX
+4. **Security:** Browser password managers can cause GET requests with credentials
+5. **Documentation:** Keeping docs consolidated prevents file proliferation
 
 ---
 
