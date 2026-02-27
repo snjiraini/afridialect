@@ -11,6 +11,7 @@
  */
 
 import Link from 'next/link'
+import Image from 'next/image'
 import { usePathname, useRouter } from 'next/navigation'
 import { useAuth } from '@/hooks/useAuth'
 import { useTheme } from '@/components/ThemeProvider'
@@ -194,11 +195,18 @@ export default function Sidebar() {
     >
       {/* Brand */}
       <div className="flex items-center gap-3 px-1 mb-1">
-        <div className="w-9 h-9 rounded-xl bg-white/20 flex items-center justify-center flex-shrink-0 shadow-inner">
-          <MicIcon />
+        <div className="w-9 h-9 rounded-xl overflow-hidden flex-shrink-0 shadow-inner bg-white/10">
+          <Image
+            src="/afridialect_logo.png"
+            alt="Afridialect.ai"
+            width={36}
+            height={36}
+            className="w-full h-full object-contain"
+            priority
+          />
         </div>
         <div>
-          <div className="font-bold text-base leading-tight" style={{ fontFamily: 'Lexend, sans-serif' }}>
+          <div className="font-bold text-base leading-tight" style={{ fontFamily: 'system-ui, sans-serif' }}>
             Afridialect.ai
           </div>
           <div className="text-[11px] opacity-70">African Speech Datasets</div>

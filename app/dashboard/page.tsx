@@ -19,12 +19,12 @@ export default async function DashboardPage() {
 
   type Action = { label: string; href: string; icon: string; color: string }
   const quickActions: Action[] = [
-    ...(userRoles.includes('uploader') || userRoles.includes('admin') ? [{ label: 'Upload Audio', href: '/uploader', icon: '\u{1F399}', color: 'var(--af-primary)' }] : []),
-    ...(userRoles.includes('transcriber') || userRoles.includes('admin') ? [{ label: 'Transcribe', href: '/transcriber', icon: '\u{1F4DD}', color: '#6366f1' }] : []),
-    ...(userRoles.includes('translator') || userRoles.includes('admin') ? [{ label: 'Translate', href: '/translator', icon: '\u{1F310}', color: '#8b5cf6' }] : []),
-    ...(userRoles.includes('reviewer') || userRoles.includes('admin') ? [{ label: 'Review / QC', href: '/reviewer', icon: '\u2705', color: '#10b981' }] : []),
-    { label: 'Marketplace', href: '/marketplace', icon: '\u{1F6CD}', color: '#f59e0b' },
-    ...(userRoles.includes('admin') ? [{ label: 'Admin Panel', href: '/admin', icon: '\u2699', color: '#ef4444' }] : []),
+    ...(userRoles.includes('uploader') || userRoles.includes('admin') ? [{ label: 'Upload Audio', href: '/uploader', icon: '🎙️', color: 'var(--af-primary)' }] : []),
+    ...(userRoles.includes('transcriber') || userRoles.includes('admin') ? [{ label: 'Transcribe', href: '/transcriber', icon: '📝', color: '#6366f1' }] : []),
+    ...(userRoles.includes('translator') || userRoles.includes('admin') ? [{ label: 'Translate', href: '/translator', icon: '🌐', color: '#8b5cf6' }] : []),
+    ...(userRoles.includes('reviewer') || userRoles.includes('admin') ? [{ label: 'Review / QC', href: '/reviewer', icon: '✅', color: '#10b981' }] : []),
+    { label: 'Marketplace', href: '/marketplace', icon: '🛍️', color: '#f59e0b' },
+    ...(userRoles.includes('admin') ? [{ label: 'Admin Panel', href: '/admin', icon: '⚙️', color: '#ef4444' }] : []),
   ]
 
   return (
@@ -33,7 +33,7 @@ export default async function DashboardPage() {
       <div className="container-modern py-8">
         {!profile?.hedera_account_id && (
           <div className="af-card p-5 mb-8 flex items-start gap-4" style={{ borderLeft: '4px solid #f59e0b' }}>
-            <div className="text-2xl flex-shrink-0">\u26A1</div>
+            <div className="text-2xl flex-shrink-0">⚡</div>
             <div className="flex-1 min-w-0">
               <h3 className="font-semibold text-sm mb-1" style={{ color: 'var(--af-txt)' }}>Create Your Hedera Account</h3>
               <p className="text-xs leading-relaxed mb-3" style={{ color: 'var(--af-muted)' }}>
@@ -45,14 +45,14 @@ export default async function DashboardPage() {
         )}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
           {([
-            { label: 'Roles', value: userRoles.length > 0 ? String(userRoles.length) : '0', icon: '\u{1F3AD}' },
-            { label: 'Hedera Account', value: profile?.hedera_account_id ? 'Active' : 'Pending', icon: '\u{1F517}' },
-            { label: 'Contributions', value: '--', icon: '\u{1F399}' },
-            { label: 'Earnings', value: '--', icon: '\u{1F4B0}' },
+            { label: 'Roles', value: userRoles.length > 0 ? String(userRoles.length) : '0', icon: '🎭' },
+            { label: 'Hedera Account', value: profile?.hedera_account_id ? 'Active' : 'Pending', icon: '🔗' },
+            { label: 'Contributions', value: '--', icon: '🎙️' },
+            { label: 'Earnings', value: '--', icon: '💰' },
           ] as { label: string; value: string; icon: string }[]).map((stat) => (
             <div key={stat.label} className="af-card p-5">
               <div className="text-2xl mb-2">{stat.icon}</div>
-              <div className="text-xl font-bold mb-1" style={{ color: 'var(--af-txt)', fontFamily: 'Lexend, sans-serif' }}>{stat.value}</div>
+              <div className="text-xl font-bold mb-1" style={{ color: 'var(--af-txt)' }}>{stat.value}</div>
               <div className="text-xs" style={{ color: 'var(--af-muted)' }}>{stat.label}</div>
             </div>
           ))}
@@ -62,7 +62,7 @@ export default async function DashboardPage() {
             <div className="flex items-center gap-3 mb-6">
               <div className="af-avatar w-14 h-14 text-lg" aria-label="User avatar">{displayName.slice(0, 2).toUpperCase()}</div>
               <div>
-                <h3 className="font-semibold text-base" style={{ color: 'var(--af-txt)', fontFamily: 'Lexend, sans-serif' }}>{displayName}</h3>
+                <h3 className="font-semibold text-base" style={{ color: 'var(--af-txt)' }}>{displayName}</h3>
                 <p className="text-xs" style={{ color: 'var(--af-muted)' }}>{profile?.email}</p>
               </div>
             </div>
@@ -83,7 +83,7 @@ export default async function DashboardPage() {
             </div>
           </div>
           <div className="lg:col-span-2">
-            <h2 className="text-base font-semibold mb-4" style={{ color: 'var(--af-txt)', fontFamily: 'Lexend, sans-serif' }}>Quick Actions</h2>
+            <h2 className="text-base font-semibold mb-4" style={{ color: 'var(--af-txt)' }}>Quick Actions</h2>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
               {quickActions.map((a) => (
                 <Link key={a.href} href={a.href}

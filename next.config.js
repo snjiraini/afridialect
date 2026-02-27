@@ -5,6 +5,7 @@ const nextConfig = {
     // Restrict remotePatterns to prevent DoS vulnerability exploitation
     remotePatterns: [],
   },
+  devIndicators: false,
 }
 
 module.exports = nextConfig
