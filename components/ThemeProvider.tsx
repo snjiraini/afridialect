@@ -4,7 +4,13 @@
  * ThemeProvider
  * Handles dark/light mode with localStorage persistence.
  * Applies 'dark' class to <html> — compatible with Tailwind darkMode: 'class'.
- * Also sets data-theme for legacy CSS tokens.
+ *
+ * Hydration safety:
+ *  - suppressHydrationWarning on <html> in layout.tsx prevents React warnings.
+ *  - The inline <script> in layout.tsx reads localStorage BEFORE React hydrates,
+ *    eliminating the flash of unstyled content (FOUC).
+ *  - We initialise React state from document.documentElement.classList so the
+ *    client state always matches what the inline script already set.
  */
 
 import { createContext, useContext, useEffect, useState, useCallback } from 'react'
@@ -21,26 +27,18 @@ const ThemeContext = createContext<ThemeContextValue>({
   toggleTheme: () => {},
 })
 
+/** Read the theme that the blocking inline script already applied to <html>. */
+function getInitialTheme(): Theme {
+  if (typeof window === 'undefined') return 'light'
+  return document.documentElement.classList.contains('dark') ? 'dark' : 'light'
+}
+
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [theme, setTheme] = useState<Theme>('light')
-  const [mounted, setMounted] = useState(false)
+  // Initialise directly from the DOM so React state matches on first paint.
+  const [theme, setTheme] = useState<Theme>(getInitialTheme)
 
-  // Read persisted preference once mounted (avoids SSR mismatch)
+  // Keep <html> class in sync whenever theme changes (covers toggleTheme calls).
   useEffect(() => {
-    try {
-      const stored = localStorage.getItem('af-theme') as Theme | null
-      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
-      const resolved: Theme = stored ?? (prefersDark ? 'dark' : 'light')
-      setTheme(resolved)
-    } catch {
-      // localStorage may be blocked
-    }
-    setMounted(true)
-  }, [])
-
-  // Apply class to <html> whenever theme changes
-  useEffect(() => {
-    if (!mounted) return
     const root = document.documentElement
     if (theme === 'dark') {
       root.classList.add('dark')
@@ -52,15 +50,14 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     try {
       localStorage.setItem('af-theme', theme)
     } catch {
-      // ignore
+      // localStorage may be blocked in some privacy modes
     }
-  }, [theme, mounted])
+  }, [theme])
 
   const toggleTheme = useCallback(() => {
     setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'))
   }, [])
 
-  // Prevent flash: render children normally (SSR will always output light)
   return (
     <ThemeContext.Provider value={{ theme, toggleTheme }}>
       {children}
