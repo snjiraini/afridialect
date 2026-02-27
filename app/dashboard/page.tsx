@@ -1,142 +1,110 @@
 /**
- * Dashboard Page
- * Main dashboard for authenticated users
+ * Dashboard Page - redesigned with AF design system
  */
-
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import Link from 'next/link'
 import CreateHederaAccountButton from './components/CreateHederaAccountButton'
+import Topbar from '@/components/layouts/Topbar'
 
 export default async function DashboardPage() {
   const supabase = await createClient()
-  
-  const {
-    data: { session },
-  } = await supabase.auth.getSession()
+  const { data: { session } } = await supabase.auth.getSession()
+  if (!session) { redirect('/auth/login') }
 
-  if (!session) {
-    redirect('/auth/login')
-  }
+  const { data: profile } = await supabase.from('profiles').select('*').eq('id', session.user.id).single()
+  const { data: roles } = await supabase.from('user_roles').select('role').eq('user_id', session.user.id)
+  const userRoles: string[] = roles?.map((r: { role: string }) => r.role) || []
+  const displayName = profile?.full_name ?? session.user.email?.split('@')[0] ?? 'User'
 
-  // Get user profile and roles
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('*')
-    .eq('id', session.user.id)
-    .single()
-
-  const { data: roles } = await supabase
-    .from('user_roles')
-    .select('role')
-    .eq('user_id', session.user.id)
-
-  const userRoles = roles?.map((r) => r.role) || []
+  type Action = { label: string; href: string; icon: string; color: string }
+  const quickActions: Action[] = [
+    ...(userRoles.includes('uploader') || userRoles.includes('admin') ? [{ label: 'Upload Audio', href: '/uploader', icon: '\u{1F399}', color: 'var(--af-primary)' }] : []),
+    ...(userRoles.includes('transcriber') || userRoles.includes('admin') ? [{ label: 'Transcribe', href: '/transcriber', icon: '\u{1F4DD}', color: '#6366f1' }] : []),
+    ...(userRoles.includes('translator') || userRoles.includes('admin') ? [{ label: 'Translate', href: '/translator', icon: '\u{1F310}', color: '#8b5cf6' }] : []),
+    ...(userRoles.includes('reviewer') || userRoles.includes('admin') ? [{ label: 'Review / QC', href: '/reviewer', icon: '\u2705', color: '#10b981' }] : []),
+    { label: 'Marketplace', href: '/marketplace', icon: '\u{1F6CD}', color: '#f59e0b' },
+    ...(userRoles.includes('admin') ? [{ label: 'Admin Panel', href: '/admin', icon: '\u2699', color: '#ef4444' }] : []),
+  ]
 
   return (
-    <div className="container mx-auto py-12 px-4">
-      <div className="max-w-4xl mx-auto">
-        <h1 className="text-4xl font-bold text-gray-900 dark:text-white mb-8">
-          Dashboard
-        </h1>
-
-        {/* Welcome Card */}
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 mb-6">
-          <h2 className="text-2xl font-semibold text-gray-900 dark:text-white mb-4">
-            Welcome, {profile?.full_name || session.user.email}!
-          </h2>
-          <p className="text-gray-600 dark:text-gray-400">
-            You're successfully authenticated and ready to start contributing to African
-            dialect datasets.
-          </p>
+    <>
+      <Topbar title="Dashboard" subtitle={"Welcome back, " + displayName} />
+      <div className="container-modern py-8">
+        {!profile?.hedera_account_id && (
+          <div className="af-card p-5 mb-8 flex items-start gap-4" style={{ borderLeft: '4px solid #f59e0b' }}>
+            <div className="text-2xl flex-shrink-0">\u26A1</div>
+            <div className="flex-1 min-w-0">
+              <h3 className="font-semibold text-sm mb-1" style={{ color: 'var(--af-txt)' }}>Create Your Hedera Account</h3>
+              <p className="text-xs leading-relaxed mb-3" style={{ color: 'var(--af-muted)' }}>
+                To start contributing and earning rewards, you need a secure blockchain-backed identity.
+              </p>
+              <CreateHederaAccountButton />
+            </div>
+          </div>
+        )}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+          {([
+            { label: 'Roles', value: userRoles.length > 0 ? String(userRoles.length) : '0', icon: '\u{1F3AD}' },
+            { label: 'Hedera Account', value: profile?.hedera_account_id ? 'Active' : 'Pending', icon: '\u{1F517}' },
+            { label: 'Contributions', value: '--', icon: '\u{1F399}' },
+            { label: 'Earnings', value: '--', icon: '\u{1F4B0}' },
+          ] as { label: string; value: string; icon: string }[]).map((stat) => (
+            <div key={stat.label} className="af-card p-5">
+              <div className="text-2xl mb-2">{stat.icon}</div>
+              <div className="text-xl font-bold mb-1" style={{ color: 'var(--af-txt)', fontFamily: 'Lexend, sans-serif' }}>{stat.value}</div>
+              <div className="text-xs" style={{ color: 'var(--af-muted)' }}>{stat.label}</div>
+            </div>
+          ))}
         </div>
-
-        {/* Profile Info Card */}
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 mb-6">
-          <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
-            Profile Information
-          </h3>
-          <div className="space-y-3">
-            <div>
-              <span className="text-sm font-medium text-gray-500 dark:text-gray-400">
-                Email:
-              </span>
-              <p className="text-gray-900 dark:text-white">{profile?.email}</p>
-            </div>
-            <div>
-              <span className="text-sm font-medium text-gray-500 dark:text-gray-400">
-                Roles:
-              </span>
-              <p className="text-gray-900 dark:text-white">
-                {userRoles.length > 0 ? userRoles.join(', ') : 'No roles assigned yet'}
-              </p>
-            </div>
-            <div>
-              <span className="text-sm font-medium text-gray-500 dark:text-gray-400">
-                Hedera Account:
-              </span>
-              <p className="text-gray-900 dark:text-white">
-                {profile?.hedera_account_id || 'Not created yet'}
-              </p>
-            </div>
-            {profile?.hedera_account_id && (
+        <div className="grid lg:grid-cols-3 gap-6">
+          <div className="af-card p-6 lg:col-span-1">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="af-avatar w-14 h-14 text-lg" aria-label="User avatar">{displayName.slice(0, 2).toUpperCase()}</div>
               <div>
-                <span className="text-sm font-medium text-gray-500 dark:text-gray-400">
-                  KMS Key ID:
-                </span>
-                <p className="text-gray-900 dark:text-white font-mono text-sm">
-                  {profile.kms_key_id}
+                <h3 className="font-semibold text-base" style={{ color: 'var(--af-txt)', fontFamily: 'Lexend, sans-serif' }}>{displayName}</h3>
+                <p className="text-xs" style={{ color: 'var(--af-muted)' }}>{profile?.email}</p>
+              </div>
+            </div>
+            <div className="space-y-3">
+              {([
+                { label: 'Email', value: profile?.email ?? '--', mono: false },
+                { label: 'Roles', value: userRoles.length > 0 ? userRoles.join(', ') : 'No roles assigned', mono: false },
+                { label: 'Hedera', value: profile?.hedera_account_id ?? 'Not created yet', mono: !!profile?.hedera_account_id },
+              ] as { label: string; value: string; mono: boolean }[]).map((row) => (
+                <div key={row.label}>
+                  <p className="text-[11px] font-medium uppercase tracking-wide mb-0.5" style={{ color: 'var(--af-muted)' }}>{row.label}</p>
+                  <p className={"text-sm break-all" + (row.mono ? ' font-mono' : '')} style={{ color: 'var(--af-txt)' }}>{row.value}</p>
+                </div>
+              ))}
+            </div>
+            <div className="mt-6 pt-4" style={{ borderTop: '1px solid var(--af-line)' }}>
+              <Link href="/profile/edit" className="btn-secondary w-full justify-center text-sm">Edit Profile</Link>
+            </div>
+          </div>
+          <div className="lg:col-span-2">
+            <h2 className="text-base font-semibold mb-4" style={{ color: 'var(--af-txt)', fontFamily: 'Lexend, sans-serif' }}>Quick Actions</h2>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+              {quickActions.map((a) => (
+                <Link key={a.href} href={a.href}
+                  className="af-card p-4 flex flex-col gap-2 hover:-translate-y-1 hover:shadow-soft-lg transition-all duration-200 group">
+                  <span className="w-10 h-10 rounded-xl flex items-center justify-center text-xl flex-shrink-0 group-hover:scale-110 transition-transform duration-200"
+                    style={{ background: a.color + '20' }}>{a.icon}</span>
+                  <span className="text-sm font-medium" style={{ color: 'var(--af-txt)' }}>{a.label}</span>
+                </Link>
+              ))}
+            </div>
+            {userRoles.length === 0 && (
+              <div className="af-card mt-4 p-5" style={{ borderLeft: '4px solid var(--af-primary)' }}>
+                <h4 className="font-semibold text-sm mb-1" style={{ color: 'var(--af-txt)' }}>No Roles Assigned Yet</h4>
+                <p className="text-xs" style={{ color: 'var(--af-muted)' }}>
+                  Contact an admin to assign a role to unlock more actions.
                 </p>
               </div>
             )}
           </div>
         </div>
-
-        {/* Quick Actions */}
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
-          <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
-            Quick Actions
-          </h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {!profile?.hedera_account_id && (
-              <CreateHederaAccountButton />
-            )}
-            <a
-              href="/marketplace"
-              className="px-4 py-3 bg-purple-600 text-white rounded-md hover:bg-purple-700 transition-colors text-center"
-            >
-              Browse Marketplace
-            </a>
-            <a
-              href="/uploader"
-              className="px-4 py-3 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors text-center"
-            >
-              Upload Audio
-            </a>
-            {userRoles.includes('admin') && (
-              <a
-                href="/admin"
-                className="px-4 py-3 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors text-center"
-              >
-                Admin Panel
-              </a>
-            )}
-          </div>
-        </div>
-
-        {/* Next Steps */}
-        {!profile?.hedera_account_id && (
-          <div className="mt-6 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg p-6">
-            <h3 className="text-lg font-semibold text-yellow-800 dark:text-yellow-400 mb-2">
-              Next Steps
-            </h3>
-            <p className="text-yellow-700 dark:text-yellow-300 text-sm">
-              To start contributing and earning rewards, you need to create a Hedera account.
-              This will give you a secure, blockchain-backed identity for all your
-              contributions.
-            </p>
-          </div>
-        )}
       </div>
-    </div>
+    </>
   )
 }

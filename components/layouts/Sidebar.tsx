@@ -1,0 +1,312 @@
+'use client'
+
+/**
+ * Sidebar
+ * Fixed left navigation panel inspired by the WhatsApp-Sender-Pro design system.
+ * - Gradient background (teal)
+ * - Role-aware nav items (conditionally shown based on user roles)
+ * - Dark/light theme toggle
+ * - User avatar + status
+ * - Handles sign-out with stopPropagation safety
+ */
+
+import Link from 'next/link'
+import { usePathname, useRouter } from 'next/navigation'
+import { useAuth } from '@/hooks/useAuth'
+import { useTheme } from '@/components/ThemeProvider'
+import { useState, useEffect, useCallback } from 'react'
+import { createClient } from '@/lib/supabase/client'
+
+interface NavItem {
+  label: string
+  href: string
+  icon: React.ReactNode
+  roles?: string[] // undefined = show to everyone authenticated; [] = show always (even logged out)
+}
+
+const MicIcon = () => (
+  <svg className="w-[18px] h-[18px] stroke-current fill-none stroke-2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+    <path d="M19 11a7 7 0 0 1-7 7m0 0a7 7 0 0 1-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 0 1-3-3V5a3 3 0 1 1 6 0v6a3 3 0 0 1-3 3z"/>
+  </svg>
+)
+
+const HomeIcon = () => (
+  <svg className="w-[18px] h-[18px] stroke-current fill-none stroke-2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+    <path d="M3 10.5 12 3l9 7.5v9a1.5 1.5 0 0 1-1.5 1.5h-5.5v-7h-4v7H4.5A1.5 1.5 0 0 1 3 19.5z"/>
+  </svg>
+)
+
+const UploadIcon = () => (
+  <svg className="w-[18px] h-[18px] stroke-current fill-none stroke-2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+  </svg>
+)
+
+const DocIcon = () => (
+  <svg className="w-[18px] h-[18px] stroke-current fill-none stroke-2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+    <path d="M9 12h6m-6 4h6m2 5H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5.586a1 1 0 0 1 .707.293l5.414 5.414a1 1 0 0 1 .293.707V19a2 2 0 0 1-2 2z"/>
+  </svg>
+)
+
+const TranslateIcon = () => (
+  <svg className="w-[18px] h-[18px] stroke-current fill-none stroke-2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+    <path d="M5 8h14M5 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4m14 0a2 2 0 1 0 0-4 2 2 0 0 0 0 4M3 8l2 13h14l2-13"/>
+  </svg>
+)
+
+const ReviewIcon = () => (
+  <svg className="w-[18px] h-[18px] stroke-current fill-none stroke-2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+    <path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
+  </svg>
+)
+
+const ShopIcon = () => (
+  <svg className="w-[18px] h-[18px] stroke-current fill-none stroke-2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+    <circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/>
+  </svg>
+)
+
+const AdminIcon = () => (
+  <svg className="w-[18px] h-[18px] stroke-current fill-none stroke-2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+    <circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.8l-.1-.1A2 2 0 1 1 7 2.3l.1.1a1.7 1.7 0 0 0 1.8.3h0A1.7 1.7 0 0 0 10 1.2V1a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5h0a1.7 1.7 0 0 0 1.8-.3l.1-.1A2 2 0 1 1 21.7 7l-.1.1a1.7 1.7 0 0 0-.3 1.8v0a1.7 1.7 0 0 0 1.5 1H23a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>
+  </svg>
+)
+
+const ProfileIcon = () => (
+  <svg className="w-[18px] h-[18px] stroke-current fill-none stroke-2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
+  </svg>
+)
+
+const SunIcon = () => (
+  <svg className="theme-sun absolute w-[18px] h-[18px] stroke-current fill-none stroke-2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+    <circle cx="12" cy="12" r="4"/>
+    <path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>
+  </svg>
+)
+
+const MoonIcon = () => (
+  <svg className="theme-moon absolute w-[18px] h-[18px] stroke-current fill-none stroke-2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+    <path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/>
+  </svg>
+)
+
+const SignOutIcon = () => (
+  <svg className="w-[18px] h-[18px] stroke-current fill-none stroke-2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
+  </svg>
+)
+
+/** All possible nav items — role filtering applied at render time */
+const ALL_NAV_ITEMS: NavItem[] = [
+  { label: 'Dashboard',   href: '/dashboard',   icon: <HomeIcon />,      roles: undefined },
+  { label: 'Upload Audio', href: '/uploader',   icon: <UploadIcon />,    roles: ['uploader', 'admin'] },
+  { label: 'Transcribe',  href: '/transcriber', icon: <DocIcon />,       roles: ['transcriber', 'admin'] },
+  { label: 'Translate',   href: '/translator',  icon: <TranslateIcon />, roles: ['translator', 'admin'] },
+  { label: 'Review / QC', href: '/reviewer',    icon: <ReviewIcon />,    roles: ['reviewer', 'admin'] },
+  { label: 'Marketplace', href: '/marketplace', icon: <ShopIcon />,      roles: undefined },
+  { label: 'Admin',       href: '/admin',        icon: <AdminIcon />,     roles: ['admin'] },
+  { label: 'Profile',     href: '/profile',      icon: <ProfileIcon />,   roles: undefined },
+]
+
+function initials(name?: string | null, email?: string | null): string {
+  if (name) {
+    const parts = name.trim().split(' ')
+    return parts.length >= 2
+      ? (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
+      : name.slice(0, 2).toUpperCase()
+  }
+  if (email) return email.slice(0, 2).toUpperCase()
+  return 'AF'
+}
+
+export default function Sidebar() {
+  const { user, signOut } = useAuth()
+  const { theme, toggleTheme } = useTheme()
+  const pathname = usePathname()
+  const router = useRouter()
+  const [userRoles, setUserRoles] = useState<string[]>([])
+  const [displayName, setDisplayName] = useState<string | null>(null)
+  const [signingOut, setSigningOut] = useState(false)
+
+  // Fetch roles + display name
+  useEffect(() => {
+    if (!user) {
+      setUserRoles([])
+      setDisplayName(null)
+      return
+    }
+
+    const supabase = createClient()
+
+    const fetchProfile = async () => {
+      try {
+        const [{ data: profile }, { data: roles }] = await Promise.all([
+          supabase.from('profiles').select('full_name').eq('id', user.id).single(),
+          supabase.from('user_roles').select('role').eq('user_id', user.id),
+        ])
+        setDisplayName(profile?.full_name ?? null)
+        setUserRoles(roles?.map((r: { role: string }) => r.role) ?? [])
+      } catch {
+        // graceful degradation
+      }
+    }
+
+    fetchProfile()
+  }, [user])
+
+  const handleSignOut = useCallback(
+    async (e: React.MouseEvent) => {
+      e.preventDefault()
+      e.stopPropagation()
+      if (signingOut) return
+      setSigningOut(true)
+      try {
+        await signOut()
+        router.push('/')
+      } catch {
+        setSigningOut(false)
+      }
+    },
+    [signOut, router, signingOut]
+  )
+
+  // Filter nav items based on authentication + roles
+  const visibleNav = ALL_NAV_ITEMS.filter((item) => {
+    if (!user) return false // all nav requires auth
+    if (!item.roles) return true // available to all authenticated users
+    return item.roles.some((r) => userRoles.includes(r))
+  })
+
+  const avatarInitials = initials(displayName, user?.email)
+
+  return (
+    <aside
+      className="fixed left-0 top-0 h-screen flex flex-col gap-4 z-40 overflow-y-auto scrollbar-thin"
+      style={{
+        width: 'var(--af-sidebar-w)',
+        background: 'linear-gradient(180deg, var(--af-sidebar-from), var(--af-sidebar-to))',
+        color: 'var(--af-sidebar-text)',
+        padding: '24px 16px',
+        boxShadow: 'var(--af-shadow)',
+        transition: 'background 0.4s ease',
+      }}
+    >
+      {/* Brand */}
+      <div className="flex items-center gap-3 px-1 mb-1">
+        <div className="w-9 h-9 rounded-xl bg-white/20 flex items-center justify-center flex-shrink-0 shadow-inner">
+          <MicIcon />
+        </div>
+        <div>
+          <div className="font-bold text-base leading-tight" style={{ fontFamily: 'Lexend, sans-serif' }}>
+            Afridialect.ai
+          </div>
+          <div className="text-[11px] opacity-70">African Speech Datasets</div>
+        </div>
+      </div>
+
+      {/* User profile strip */}
+      {user && (
+        <div
+          className="flex items-center gap-3 p-3 rounded-[14px]"
+          style={{ background: 'rgba(255,255,255,.12)' }}
+        >
+          <div
+            className="af-avatar w-10 h-10 text-sm"
+            aria-label={`Avatar for ${displayName ?? user.email}`}
+          >
+            {avatarInitials}
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="text-sm font-semibold truncate">
+              {displayName ?? user.email?.split('@')[0]}
+            </div>
+            <div className="flex items-center gap-1.5 mt-0.5">
+              <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-400" />
+              <span className="text-[11px] opacity-75">Active</span>
+            </div>
+          </div>
+          {/* Role badges (compact) */}
+          {userRoles.length > 0 && (
+            <span
+              className="text-[10px] px-2 py-0.5 rounded-full font-medium flex-shrink-0"
+              style={{ background: 'rgba(255,255,255,.2)' }}
+            >
+              {userRoles[0]}
+            </span>
+          )}
+        </div>
+      )}
+
+      {/* Navigation */}
+      <nav className="flex flex-col gap-1 flex-1">
+        {!user ? (
+          <>
+            <Link href="/auth/login" className="af-nav-item">
+              <HomeIcon />
+              <span>Login</span>
+            </Link>
+            <Link href="/auth/signup" className="af-nav-item">
+              <ProfileIcon />
+              <span>Sign Up</span>
+            </Link>
+          </>
+        ) : (
+          visibleNav.map((item) => {
+            const isActive =
+              item.href === '/dashboard'
+                ? pathname === '/dashboard'
+                : pathname?.startsWith(item.href)
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={`af-nav-item${isActive ? ' active' : ''}`}
+              >
+                {item.icon}
+                <span>{item.label}</span>
+                {isActive && (
+                  <span className="ml-auto w-1.5 h-1.5 rounded-full bg-white opacity-80" />
+                )}
+              </Link>
+            )
+          })
+        )}
+      </nav>
+
+      {/* Footer: theme toggle + sign out */}
+      <div className="flex items-center gap-2 pt-2" style={{ borderTop: '1px solid rgba(255,255,255,.15)' }}>
+        {/* Theme toggle */}
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); toggleTheme() }}
+          aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
+          className="relative w-10 h-10 rounded-xl grid place-items-center cursor-pointer transition-all duration-200 hover:-translate-y-0.5"
+          style={{
+            background: 'rgba(255,255,255,.12)',
+            border: '1px solid rgba(255,255,255,.25)',
+            color: 'var(--af-sidebar-text)',
+          }}
+        >
+          <SunIcon />
+          <MoonIcon />
+        </button>
+
+        {/* Sign out */}
+        {user && (
+          <button
+            type="button"
+            onClick={handleSignOut}
+            disabled={signingOut}
+            aria-label="Sign out"
+            className="flex-1 flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm font-medium cursor-pointer transition-all duration-200 hover:bg-white/15 disabled:opacity-50"
+            style={{ color: 'var(--af-sidebar-text)' }}
+          >
+            <SignOutIcon />
+            <span>{signingOut ? 'Signing out…' : 'Sign Out'}</span>
+          </button>
+        )}
+      </div>
+    </aside>
+  )
+}

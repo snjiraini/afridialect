@@ -1,223 +1,110 @@
 /**
- * Profile Page
- * View user profile and Hedera account details
+ * Profile Page - redesigned with AF design system
  */
-
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import Link from 'next/link'
+import Topbar from '@/components/layouts/Topbar'
 
 export default async function ProfilePage() {
   const supabase = await createClient()
-  
-  const {
-    data: { session },
-  } = await supabase.auth.getSession()
+  const { data: { session } } = await supabase.auth.getSession()
+  if (!session) { redirect('/auth/login') }
 
-  if (!session) {
-    redirect('/auth/login')
-  }
-
-  // Get user profile
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('*')
-    .eq('id', session.user.id)
-    .single()
-
-  // Get user roles
-  const { data: roles } = await supabase
-    .from('user_roles')
-    .select('role')
-    .eq('user_id', session.user.id)
-
-  const userRoles = roles?.map((r) => r.role) || []
-
-  // Get Hedera account balance if account exists
-  let accountBalance = null
-  if (profile?.hedera_account_id) {
-    // TODO: Implement getAccountBalance in a server action
-    // For now, we'll just show the account ID
-  }
+  const { data: profile } = await supabase.from('profiles').select('*').eq('id', session.user.id).single()
+  const { data: roles } = await supabase.from('user_roles').select('role').eq('user_id', session.user.id)
+  const userRoles: string[] = roles?.map((r: { role: string }) => r.role) || []
+  const displayName = profile?.full_name ?? session.user.email?.split('@')[0] ?? 'User'
 
   return (
-    <div className="container mx-auto py-12 px-4">
-      <div className="max-w-4xl mx-auto">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-8">
-          <h1 className="text-4xl font-bold text-gray-900 dark:text-white">
-            My Profile
-          </h1>
-          <Link
-            href="/profile/edit"
-            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
-          >
-            Edit Profile
-          </Link>
-        </div>
+    <>
+      <Topbar title="My Profile" subtitle="Manage your account and Hedera identity" />
+      <div className="container-modern py-8">
+        <div className="grid lg:grid-cols-3 gap-6">
 
-        {/* Basic Information */}
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 mb-6">
-          <h2 className="text-2xl font-semibold text-gray-900 dark:text-white mb-4">
-            Basic Information
-          </h2>
-          <div className="space-y-4">
-            <div>
-              <label className="text-sm font-medium text-gray-500 dark:text-gray-400">
-                Full Name
-              </label>
-              <p className="text-lg text-gray-900 dark:text-white">
-                {profile?.full_name || 'Not set'}
-              </p>
+          {/* Avatar + summary */}
+          <div className="af-card p-6 lg:col-span-1 flex flex-col items-center text-center gap-4">
+            <div className="af-avatar w-20 h-20 text-2xl mt-2">
+              {displayName.slice(0, 2).toUpperCase()}
             </div>
             <div>
-              <label className="text-sm font-medium text-gray-500 dark:text-gray-400">
-                Email Address
-              </label>
-              <p className="text-lg text-gray-900 dark:text-white">
-                {profile?.email}
-              </p>
+              <h2 className="text-lg font-semibold" style={{ fontFamily: 'Lexend, sans-serif', color: 'var(--af-txt)' }}>
+                {displayName}
+              </h2>
+              <p className="text-xs mt-0.5" style={{ color: 'var(--af-muted)' }}>{profile?.email}</p>
             </div>
-            <div>
-              <label className="text-sm font-medium text-gray-500 dark:text-gray-400">
-                User ID
-              </label>
-              <p className="text-sm font-mono text-gray-600 dark:text-gray-400">
-                {session.user.id}
-              </p>
+            <div className="flex flex-wrap justify-center gap-2">
+              {userRoles.length > 0 ? userRoles.map((r) => (
+                <span key={r} className="badge badge-primary capitalize">{r}</span>
+              )) : (
+                <span className="badge" style={{ background: 'var(--af-line)', color: 'var(--af-muted)' }}>No roles</span>
+              )}
             </div>
-            <div>
-              <label className="text-sm font-medium text-gray-500 dark:text-gray-400">
-                Member Since
-              </label>
-              <p className="text-gray-900 dark:text-white">
-                {new Date(profile?.created_at || '').toLocaleDateString('en-US', {
-                  year: 'numeric',
-                  month: 'long',
-                  day: 'numeric',
-                })}
-              </p>
-            </div>
+            <Link href="/profile/edit" className="btn-primary w-full justify-center mt-2">Edit Profile</Link>
           </div>
-        </div>
 
-        {/* Roles & Permissions */}
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 mb-6">
-          <h2 className="text-2xl font-semibold text-gray-900 dark:text-white mb-4">
-            Roles & Permissions
-          </h2>
-          <div className="space-y-3">
-            {userRoles.length === 0 ? (
-              <p className="text-gray-600 dark:text-gray-400">
-                No roles assigned yet. Contact an administrator to request roles.
-              </p>
-            ) : (
-              <div className="flex flex-wrap gap-2">
-                {userRoles.map((role) => (
-                  <span
-                    key={role}
-                    className="px-3 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-400 rounded-full text-sm font-medium"
-                  >
-                    {role.charAt(0).toUpperCase() + role.slice(1)}
-                  </span>
+          {/* Details */}
+          <div className="lg:col-span-2 flex flex-col gap-6">
+
+            {/* Basic info */}
+            <div className="af-card p-6">
+              <h3 className="text-sm font-semibold uppercase tracking-wide mb-4" style={{ color: 'var(--af-muted)' }}>
+                Basic Information
+              </h3>
+              <div className="grid sm:grid-cols-2 gap-4">
+                {[
+                  { label: 'Full Name', value: profile?.full_name ?? 'Not set' },
+                  { label: 'Email', value: profile?.email ?? session.user.email ?? '--' },
+                  { label: 'Member Since', value: profile?.created_at ? new Date(profile.created_at).toLocaleDateString() : '--' },
+                  { label: 'Roles', value: userRoles.length > 0 ? userRoles.join(', ') : 'None assigned' },
+                ].map((row) => (
+                  <div key={row.label}>
+                    <p className="text-[11px] font-medium uppercase tracking-wide mb-1" style={{ color: 'var(--af-muted)' }}>{row.label}</p>
+                    <p className="text-sm font-medium" style={{ color: 'var(--af-txt)' }}>{row.value}</p>
+                  </div>
                 ))}
               </div>
-            )}
+            </div>
+
+            {/* Hedera account */}
+            <div className="af-card p-6">
+              <h3 className="text-sm font-semibold uppercase tracking-wide mb-4" style={{ color: 'var(--af-muted)' }}>
+                Hedera Blockchain Identity
+              </h3>
+              {profile?.hedera_account_id ? (
+                <div className="grid sm:grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-[11px] font-medium uppercase tracking-wide mb-1" style={{ color: 'var(--af-muted)' }}>Account ID</p>
+                    <p className="text-sm font-mono font-medium" style={{ color: 'var(--af-txt)' }}>{profile.hedera_account_id}</p>
+                  </div>
+                  {profile.kms_key_id && (
+                    <div>
+                      <p className="text-[11px] font-medium uppercase tracking-wide mb-1" style={{ color: 'var(--af-muted)' }}>KMS Key ID</p>
+                      <p className="text-sm font-mono break-all" style={{ color: 'var(--af-txt)' }}>{profile.kms_key_id}</p>
+                    </div>
+                  )}
+                  <div className="sm:col-span-2">
+                    <span className="badge badge-success">Active — ThresholdKey (2-of-2)</span>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex items-start gap-4 p-4 rounded-xl" style={{ background: 'var(--af-primary-light)' }}>
+                  <div className="text-2xl flex-shrink-0">⚡</div>
+                  <div>
+                    <p className="text-sm font-semibold mb-1" style={{ color: 'var(--af-txt)' }}>
+                      No Hedera account yet
+                    </p>
+                    <p className="text-xs mb-3" style={{ color: 'var(--af-muted)' }}>
+                      Create your Hedera account to start earning from your contributions.
+                    </p>
+                    <Link href="/dashboard" className="btn-primary text-sm">Go to Dashboard</Link>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </div>
-
-        {/* Hedera Account */}
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 mb-6">
-          <h2 className="text-2xl font-semibold text-gray-900 dark:text-white mb-4">
-            Hedera Account
-          </h2>
-          {profile?.hedera_account_id ? (
-            <div className="space-y-4">
-              <div>
-                <label className="text-sm font-medium text-gray-500 dark:text-gray-400">
-                  Account ID
-                </label>
-                <div className="flex items-center gap-2">
-                  <p className="text-lg font-mono text-gray-900 dark:text-white">
-                    {profile.hedera_account_id}
-                  </p>
-                  <a
-                    href={`https://hashscan.io/${process.env.HEDERA_NETWORK || 'testnet'}/account/${profile.hedera_account_id}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-blue-600 hover:text-blue-700 text-sm"
-                  >
-                    View on HashScan ↗
-                  </a>
-                </div>
-              </div>
-              <div>
-                <label className="text-sm font-medium text-gray-500 dark:text-gray-400">
-                  KMS Key ID
-                </label>
-                <p className="text-sm font-mono text-gray-600 dark:text-gray-400">
-                  {profile.kms_key_id}
-                </p>
-              </div>
-              <div>
-                <label className="text-sm font-medium text-gray-500 dark:text-gray-400">
-                  Account Type
-                </label>
-                <p className="text-gray-900 dark:text-white">
-                  ThresholdKey (2-of-2) - Secure custody with platform guardian
-                </p>
-              </div>
-              {/* Balance placeholder */}
-              <div>
-                <label className="text-sm font-medium text-gray-500 dark:text-gray-400">
-                  Balance
-                </label>
-                <p className="text-gray-600 dark:text-gray-400 text-sm">
-                  Balance information coming soon
-                </p>
-              </div>
-            </div>
-          ) : (
-            <div className="text-center py-6">
-              <p className="text-gray-600 dark:text-gray-400 mb-4">
-                You haven't created a Hedera account yet.
-              </p>
-              <Link
-                href="/dashboard"
-                className="inline-block px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-              >
-                Go to Dashboard to Create Account
-              </Link>
-            </div>
-          )}
-        </div>
-
-        {/* Quick Actions */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <Link
-            href="/dashboard"
-            className="block p-4 bg-white dark:bg-gray-800 rounded-lg shadow-md hover:shadow-lg transition-shadow"
-          >
-            <h3 className="font-semibold text-gray-900 dark:text-white mb-2">
-              Dashboard
-            </h3>
-            <p className="text-sm text-gray-600 dark:text-gray-400">
-              View your activity and contributions
-            </p>
-          </Link>
-          <Link
-            href="/auth/update-password"
-            className="block p-4 bg-white dark:bg-gray-800 rounded-lg shadow-md hover:shadow-lg transition-shadow"
-          >
-            <h3 className="font-semibold text-gray-900 dark:text-white mb-2">
-              Change Password
-            </h3>
-            <p className="text-sm text-gray-600 dark:text-gray-400">
-              Update your account password
-            </p>
-          </Link>
-        </div>
       </div>
-    </div>
+    </>
   )
 }
