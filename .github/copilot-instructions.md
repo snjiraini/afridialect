@@ -2,6 +2,15 @@
 
 ## Project Rules and Guidelines
 
+### Code Change Rules
+**CRITICAL:** All new code changes must adhere to the following rules:
+- ❌ DO NOT introduce breaking changes to existing code, APIs, or functionality
+- ❌ DO NOT alter the existing application look and feel (UI layout, color scheme, typography, spacing, component styles)
+- ✅ New features must be additive and backward-compatible
+- ✅ Existing component styles, Tailwind classes, and CSS must be preserved unless explicitly instructed to change them
+- ✅ Existing API contracts (request/response shapes, status codes) must remain unchanged
+- ✅ Refactors must maintain identical behavior and visual output
+
 ### Documentation Rules
 **CRITICAL:** Only 4 markdown documentation files are allowed in the `docs/` folder:
 1. `afridialect_prd.md` - Product Requirements Document (DO NOT MODIFY)
