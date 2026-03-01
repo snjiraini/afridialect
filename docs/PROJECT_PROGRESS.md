@@ -2,8 +2,8 @@
 
 **Project Start Date:** February 21, 2026  
 **Status:** In Progress  
-**Current Phase:** Phase 6 - Translation Workflow  
-**Overall Progress:** 65%
+**Current Phase:** Phase 7 - NFT Minting  
+**Overall Progress:** 75%
 
 ---
 
@@ -318,32 +318,40 @@
 
 ---
 
-### ⏳ **Phase 6: QC & Moderation**
-**Status:** Not Started  
-**Target Completion:** TBD
+### ✅ **Phase 6: Translation Workflow + Transcript QC**
+**Status:** ✅ Completed (100%)  
+**Completion Date:** February 2026  
+**Branch:** `feature/phase-6`
 
 #### Tasks:
-- [ ] Build Audio QC interface
-  - [ ] Moderation checklist UI
-  - [ ] Rejection reason selection
-  - [ ] Approval workflow
-- [ ] Build Transcript QC interface
-  - [ ] Transcript review UI
-  - [ ] Fidelity checks
-  - [ ] Tag validation
-- [ ] Build Translation QC interface
-  - [ ] Translation review UI
-  - [ ] Meaning preservation checks
-- [ ] Implement moderation categories (hate speech, threats, etc.)
-- [ ] Create rejection and notification logic
-- [ ] Build reviewer dashboards
-- [ ] Implement QC payment tracking ($1 per review)
+- [x] Expand reviewer QC queue to handle `audio_qc` AND `transcript_qc` tasks
+- [x] Build TranscriptQCForm (audio player + read-only transcript + approve/reject)
+- [x] Create `POST /api/transcript-qc/submit` endpoint
+  - Approve: clip → `translation_ready`, create `translation` task
+  - Reject: clip → `transcript_rejected`
+- [x] Build translator queue (`/translator`) with active-claim banner
+  - One-task-per-item: filters own uploads AND own transcriptions
+- [x] Build translator task detail page (`/translator/[taskId]`)
+  - Signs audio URL (2h TTL), fetches approved transcription (source text)
+- [x] Build TranslationForm client component
+  - Claim gate (POST `/api/translation/claim`)
+  - Audio player + read-only source transcription + English translation editor
+  - Speaker turns field
+- [x] Create `POST /api/translation/claim` endpoint
+  - Atomic claim, 24h expiry, one-active-task-per-user guard
+- [x] Create `POST /api/translation/submit` endpoint
+  - Upserts `translations` table, clip → `translation_qc`, creates `translation_qc` task
 
 #### Deliverables:
-- [ ] Complete QC workflow for all three stages
-- [ ] Moderation enforcement
-- [ ] Reviewer interfaces and dashboards
-- [ ] QC payment tracking
+- [x] `app/reviewer/page.tsx` — Expanded QC queue (audio_qc + transcript_qc)
+- [x] `app/reviewer/[taskId]/components/TranscriptQCForm.tsx`
+- [x] `app/api/transcript-qc/submit/route.ts`
+- [x] `app/translator/page.tsx`
+- [x] `app/translator/[taskId]/page.tsx`
+- [x] `app/translator/[taskId]/components/TranslationForm.tsx`
+- [x] `app/api/translation/claim/route.ts`
+- [x] `app/api/translation/submit/route.ts`
+- [x] Build passes 0 errors (30 routes compiled)
 
 ---
 

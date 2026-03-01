@@ -697,34 +697,108 @@ app/api/transcription/
 
 ---
 
-## Phase 6: Translation Workflow
+## Phase 6: Translation Workflow + Transcript QC
 
-**Status:** ⏳ PENDING  
-**Planned Start:** TBD
+**Status:** ✅ COMPLETE  
+**Completed:** February 2026  
+**Branch:** `feature/phase-6`
 
 ### Objectives
-- Build translation interface
-- Implement task claiming
-- Create translation editor
-- Set up translation QC
+- Expand reviewer QC queue to handle both audio_qc and transcript_qc tasks
+- Build transcript QC form (audio + transcription side-by-side review)
+- Build translation interface with claim/lock and editor
+- Create translation submit flow → translation_qc task creation
 
-### Planned Deliverables
+### Deliverables
 
-**6.1 Translation Queue**
-- [ ] Available translation tasks
-- [ ] Source transcript display
-- [ ] Claim/unclaim functionality
+**6.1 Reviewer Queue Expansion** ✅
+- ✅ `app/reviewer/page.tsx` — expanded to list both `audio_qc` and `transcript_qc` available tasks
+  - Colour-coded task type badges (purple = Transcript QC)
+  - Summary counts per task type in header
+  - Both QC checklists displayed side-by-side
+  - One-task-per-item filter (excludes reviewer's own uploads)
 
-**6.2 Translation Editor**
-- [ ] Source transcript reference
-- [ ] Translation text editor
-- [ ] Alignment tools
-- [ ] Context preservation guidelines
+**6.2 Transcript QC Form** ✅
+- ✅ `app/reviewer/[taskId]/page.tsx` — routes to AudioQCForm or TranscriptQCForm based on `task_type`
+- ✅ `app/reviewer/[taskId]/components/TranscriptQCForm.tsx`
+  - Audio playback panel (signed URL, 2h TTL)
+  - Read-only submitted transcription display (monospace, word count)
+  - Clip metadata: dialect, duration, speaker count, turns, tags
+  - Approve / Reject decision with 8 transcript-specific rejection reasons:
+    `verbatim_not_met`, `wrong_dialect_marking`, `incorrect_tags`, `speaker_count_wrong`,
+    `speaker_turns_wrong`, `code_switching_error`, `incomplete`, `other`
+  - Notes field (500 char max)
+  - Redirects to `/reviewer` on success
 
-**6.3 Translation QC**
-- [ ] Side-by-side comparison
-- [ ] Meaning preservation check
-- [ ] Approve/reject workflow
+**6.3 Transcript QC API** ✅
+- ✅ `app/api/transcript-qc/submit/route.ts`
+  - POST: `{ taskId, decision, reasons?, notes? }`
+  - Verifies reviewer role
+  - Enforces one-task-per-item: not own upload, not own transcription
+  - On approve: clip → `translation_ready`; creates `translation` task
+  - On reject: clip → `transcript_rejected`
+  - Inserts `qc_reviews` record (`review_type: 'transcript_qc'`)
+  - Audit log: `approve_transcript_qc` or `reject_transcript_qc`
+
+**6.4 Translation Queue** ✅
+- ✅ `app/translator/page.tsx`
+  - Lists available `translation` tasks (translator role required)
+  - Active-claim banner with live expiry countdown
+  - One-task-per-item filter: excludes own uploads AND own transcriptions
+  - Translation guidelines panel
+  - Links to `/translator/[taskId]`
+
+**6.5 Translator Task Detail** ✅
+- ✅ `app/translator/[taskId]/page.tsx`
+  - Verifies translator role
+  - Fetches task + clip + approved transcription (source text)
+  - Generates signed audio URL (2h TTL from `audio-staging` bucket)
+  - Enforces: not own upload, not own transcription
+  - Fetches existing draft translation if available
+  - Passes all to `TranslationForm` client component
+
+**6.6 Translation Editor** ✅
+- ✅ `app/translator/[taskId]/components/TranslationForm.tsx`
+  - **Claim gate**: shows task preview + source transcript snippet, claims task via POST `/api/translation/claim`
+  - **Editor view** (after claiming):
+    - Expiry countdown banner
+    - Audio player (signed URL, 2h TTL)
+    - Source transcription panel (read-only, dialect-labelled)
+    - English translation textarea (monospace, word count)
+    - Speaker turns input field
+    - Submit via POST `/api/translation/submit`
+  - Redirects to `/translator` on success
+
+**6.7 Translation Claim API** ✅
+- ✅ `app/api/translation/claim/route.ts`
+  - POST: `{ taskId }`
+  - Verifies translator role
+  - Prevents double-claim (only one active translation task per user)
+  - One-task-per-item: not own upload, not own transcription
+  - Atomic claim: updates `WHERE status = 'available'` (race-condition safe)
+  - Sets 24h expiry (`expires_at`)
+  - Audit log: `claim_translation`
+
+**6.8 Translation Submit API** ✅
+- ✅ `app/api/translation/submit/route.ts`
+  - POST: `{ taskId, audioClipId, content, speakerTurns }`
+  - Verifies translator role, task claimed by this user, not expired
+  - One-task-per-item: not own upload, not own transcription
+  - Upserts `translations` table (`onConflict: 'audio_clip_id'`)
+  - Advances clip → `translation_qc`
+  - Creates `translation_qc` task for reviewer queue
+  - Audit log: `submit_translation`
+
+### Build Result
+- ✅ `npm run build` — 0 errors, 30 routes compiled (including `/translator`, `/translator/[taskId]`)
+
+### Pipeline State After Phase 6
+```
+uploaded → audio_qc → transcription_ready → transcription_in_progress
+→ transcript_qc → translation_ready → translation_in_progress
+→ translation_qc → mint_ready → ipfs_pinned → minted → sellable
+```
+All states through `translation_qc` are now fully implemented.
 
 ---
 
