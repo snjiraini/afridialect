@@ -2,14 +2,16 @@ import { createClient } from '@/lib/supabase/server'
 import { redirect, notFound } from 'next/navigation'
 import Topbar from '@/components/layouts/Topbar'
 import AudioQCForm from './components/AudioQCForm'
+import TranscriptQCForm from './components/TranscriptQCForm'
 
 interface Props {
   params: Promise<{ taskId: string }>
 }
 
 /**
- * Audio QC review detail page.
- * Fetches the task + clip, signs the audio URL, then renders the client-side form.
+ * Reviewer task detail page.
+ * Handles both audio_qc and transcript_qc task types.
+ * Routes to the correct form component based on task_type.
  */
 export default async function ReviewerTaskPage({ params }: Props) {
   const { taskId } = await params
@@ -33,7 +35,7 @@ export default async function ReviewerTaskPage({ params }: Props) {
     redirect('/reviewer')
   }
 
-  // Fetch the task with full clip + dialect info
+  // Fetch the task — accepts audio_qc OR transcript_qc
   const { data: task, error } = await supabase
     .from('tasks')
     .select(`
@@ -55,14 +57,13 @@ export default async function ReviewerTaskPage({ params }: Props) {
       )
     `)
     .eq('id', taskId)
-    .eq('task_type', 'audio_qc')
+    .in('task_type', ['audio_qc', 'transcript_qc'])
     .single()
 
   if (error || !task) {
     notFound()
   }
 
-  // Supabase returns joined 1:1 relations as object or array — normalise
   // @ts-ignore
   const clipRaw = task.audio_clips
   const clip = Array.isArray(clipRaw) ? clipRaw[0] : clipRaw
@@ -85,17 +86,15 @@ export default async function ReviewerTaskPage({ params }: Props) {
   const dialectRaw = clip.dialects
   const dialect = Array.isArray(dialectRaw) ? dialectRaw[0] : dialectRaw
 
-  // Generate a signed URL for private bucket playback (1 hour TTL)
+  // Generate a signed URL for private bucket playback (2 hour TTL)
   let signedAudioUrl: string | null = null
   if (clip.audio_url) {
-    // Extract the storage path from the full public URL
     const urlParts = clip.audio_url.split('/audio-staging/')
     const storagePath = urlParts[1] ?? ''
-
     if (storagePath) {
       const { data: signed } = await supabase.storage
         .from('audio-staging')
-        .createSignedUrl(storagePath, 3600)
+        .createSignedUrl(storagePath, 7200)
       signedAudioUrl = signed?.signedUrl ?? null
     }
   }
@@ -103,25 +102,67 @@ export default async function ReviewerTaskPage({ params }: Props) {
   // @ts-ignore
   const description: string = clip.metadata?.description ?? ''
 
+  // For transcript_qc: fetch the submitted transcription
+  let transcriptionContent: string | null = null
+  let transcriptionTags: string[] = []
+  let transcriptionSpeakerCount: number = clip.speaker_count ?? 1
+  let transcriptionSpeakerTurns: number = 1
+
+  if (task.task_type === 'transcript_qc') {
+    const { data: transcription } = await supabase
+      .from('transcriptions')
+      .select('content, tags, speaker_count, speaker_turns')
+      .eq('audio_clip_id', task.audio_clip_id)
+      .maybeSingle()
+
+    transcriptionContent = transcription?.content ?? null
+    transcriptionTags = transcription?.tags ?? []
+    transcriptionSpeakerCount = transcription?.speaker_count ?? clip.speaker_count ?? 1
+    transcriptionSpeakerTurns = transcription?.speaker_turns ?? 1
+
+    // If no transcription found, this task is misconfigured — redirect
+    if (!transcriptionContent) {
+      redirect('/reviewer')
+    }
+  }
+
+  const isTranscriptQC = task.task_type === 'transcript_qc'
+
   return (
     <>
       <Topbar
-        title="Audio QC"
+        title={isTranscriptQC ? 'Transcript QC' : 'Audio QC'}
         subtitle={`Reviewing: ${dialect?.name ?? 'Unknown dialect'} · ${taskId.slice(0, 8)}`}
       />
       <div className="container-modern py-8">
-        <AudioQCForm
-          taskId={task.id}
-          audioClipId={clip.id}
-          dialectName={dialect?.name ?? 'Unknown'}
-          dialectCode={dialect?.code ?? ''}
-          durationSeconds={clip.duration_seconds}
-          speakerCount={clip.speaker_count ?? 1}
-          speakerGender={clip.speaker_gender ?? 'unknown'}
-          speakerAgeRange={clip.speaker_age_range ?? 'adult'}
-          description={description}
-          signedAudioUrl={signedAudioUrl}
-        />
+        {isTranscriptQC ? (
+          <TranscriptQCForm
+            taskId={task.id}
+            audioClipId={clip.id}
+            dialectName={dialect?.name ?? 'Unknown'}
+            dialectCode={dialect?.code ?? ''}
+            durationSeconds={clip.duration_seconds}
+            speakerCount={transcriptionSpeakerCount}
+            speakerTurns={transcriptionSpeakerTurns}
+            speakerGender={clip.speaker_gender ?? 'unknown'}
+            tags={transcriptionTags}
+            transcriptionContent={transcriptionContent!}
+            signedAudioUrl={signedAudioUrl}
+          />
+        ) : (
+          <AudioQCForm
+            taskId={task.id}
+            audioClipId={clip.id}
+            dialectName={dialect?.name ?? 'Unknown'}
+            dialectCode={dialect?.code ?? ''}
+            durationSeconds={clip.duration_seconds}
+            speakerCount={clip.speaker_count ?? 1}
+            speakerGender={clip.speaker_gender ?? 'unknown'}
+            speakerAgeRange={clip.speaker_age_range ?? 'adult'}
+            description={description}
+            signedAudioUrl={signedAudioUrl}
+          />
+        )}
       </div>
     </>
   )
