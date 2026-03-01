@@ -8,12 +8,9 @@ import { NextRequest, NextResponse } from 'next/server'
 
 export async function POST(request: NextRequest) {
   const supabase = await createClient()
-  
-  const {
-    data: { session },
-  } = await supabase.auth.getSession()
+  const { data: { user }, error: authError } = await supabase.auth.getUser()
 
-  if (!session) {
+  if (authError || !user) {
     return NextResponse.json(
       { error: 'Unauthorized' },
       { status: 401 }
@@ -21,7 +18,7 @@ export async function POST(request: NextRequest) {
   }
 
   // Check if already verified
-  if (session.user.email_confirmed_at) {
+  if (user.email_confirmed_at) {
     return NextResponse.json(
       { error: 'Email already verified' },
       { status: 400 }
@@ -32,7 +29,7 @@ export async function POST(request: NextRequest) {
     // Resend confirmation email
     const { error } = await supabase.auth.resend({
       type: 'signup',
-      email: session.user.email!,
+      email: user.email!,
     })
 
     if (error) throw error

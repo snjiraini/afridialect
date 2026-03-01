@@ -1,31 +1,25 @@
-/**
- * Assign Role API Route
- * POST /api/admin/assign-role
- * Assigns a role to a user (admin only)
- */
-
+import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
 
 export async function POST(request: NextRequest) {
   const supabase = await createClient()
-  
-  const {
-    data: { session },
-  } = await supabase.auth.getSession()
+  const { data: { user }, error: authError } = await supabase.auth.getUser()
 
-  if (!session) {
+  if (authError || !user) {
     return NextResponse.json(
       { error: 'Unauthorized' },
       { status: 401 }
     )
   }
 
+  const admin = createAdminClient()
+
   // Check if requesting user is admin
-  const { data: adminRole } = await supabase
+  const { data: adminRole } = await admin
     .from('user_roles')
     .select('role')
-    .eq('user_id', session.user.id)
+    .eq('user_id', user.id)
     .eq('role', 'admin')
     .single()
 
@@ -57,13 +51,13 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if user exists
-    const { data: user } = await supabase
+    const { data: targetUser } = await admin
       .from('profiles')
       .select('id')
       .eq('id', userId)
       .single()
 
-    if (!user) {
+    if (!targetUser) {
       return NextResponse.json(
         { error: 'User not found' },
         { status: 404 }
@@ -71,7 +65,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if role already assigned
-    const { data: existingRole } = await supabase
+    const { data: existingRole } = await admin
       .from('user_roles')
       .select('id')
       .eq('user_id', userId)
@@ -86,7 +80,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Assign role
-    const { error: insertError } = await supabase
+    const { error: insertError } = await admin
       .from('user_roles')
       .insert({
         user_id: userId,
@@ -96,14 +90,14 @@ export async function POST(request: NextRequest) {
     if (insertError) throw insertError
 
     // Log the action
-    await supabase.from('audit_logs').insert({
-      user_id: session.user.id,
+    await admin.from('audit_logs').insert({
+      user_id: user.id,
       action: 'role_assigned',
       resource_type: 'user',
       resource_id: userId,
       details: {
         role: role,
-        assigned_by: session.user.id,
+        assigned_by: user.id,
       },
     })
 

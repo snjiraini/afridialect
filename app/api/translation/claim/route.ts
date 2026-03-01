@@ -1,3 +1,4 @@
+import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
 
@@ -16,17 +17,19 @@ import { NextRequest, NextResponse } from 'next/server'
 export async function POST(request: NextRequest) {
   try {
     const supabase = await createClient()
-    const { data: { session } } = await supabase.auth.getSession()
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
 
-    if (!session) {
+    if (authError || !user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
+    const admin = createAdminClient()
+
     // Verify translator role
-    const { data: role } = await supabase
+    const { data: role } = await admin
       .from('user_roles')
       .select('role')
-      .eq('user_id', session.user.id)
+      .eq('user_id', user.id)
       .eq('role', 'translator')
       .single()
 
@@ -42,12 +45,12 @@ export async function POST(request: NextRequest) {
     }
 
     // Check user doesn't already have an active claimed translation task
-    const { data: existingClaim } = await supabase
+    const { data: existingClaim } = await admin
       .from('tasks')
       .select('id')
       .eq('task_type', 'translation')
       .eq('status', 'claimed')
-      .eq('claimed_by', session.user.id)
+      .eq('claimed_by', user.id)
       .maybeSingle()
 
     if (existingClaim && existingClaim.id !== taskId) {
@@ -58,7 +61,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Fetch the task
-    const { data: task, error: fetchError } = await supabase
+    const { data: task, error: fetchError } = await admin
       .from('tasks')
       .select('id, task_type, status, claimed_by, audio_clip_id')
       .eq('id', taskId)
@@ -70,7 +73,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Already claimed by this user — idempotent success
-    if (task.status === 'claimed' && task.claimed_by === session.user.id) {
+    if (task.status === 'claimed' && task.claimed_by === user.id) {
       return NextResponse.json({ success: true, alreadyClaimed: true })
     }
 
@@ -79,7 +82,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Enforce one-task-per-item: cannot translate own upload
-    const { data: clip, error: clipError } = await supabase
+    const { data: clip, error: clipError } = await admin
       .from('audio_clips')
       .select('id, uploader_id')
       .eq('id', task.audio_clip_id)
@@ -89,16 +92,16 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Audio clip not found' }, { status: 404 })
     }
 
-    if (clip.uploader_id === session.user.id) {
+    if (clip.uploader_id === user.id) {
       return NextResponse.json({ error: 'You cannot translate your own audio clip' }, { status: 403 })
     }
 
     // Enforce one-task-per-item: cannot translate clip they transcribed
-    const { data: ownTranscription } = await supabase
+    const { data: ownTranscription } = await admin
       .from('transcriptions')
       .select('transcriber_id')
       .eq('audio_clip_id', task.audio_clip_id)
-      .eq('transcriber_id', session.user.id)
+      .eq('transcriber_id', user.id)
       .maybeSingle()
 
     if (ownTranscription) {
@@ -112,11 +115,11 @@ export async function POST(request: NextRequest) {
     const expiresAt = new Date(now.getTime() + 24 * 60 * 60 * 1000).toISOString()
 
     // Claim the task atomically — only succeed if still available
-    const { data: updated, error: updateError } = await supabase
+    const { data: updated, error: updateError } = await admin
       .from('tasks')
       .update({
         status:     'claimed',
-        claimed_by: session.user.id,
+        claimed_by: user.id,
         claimed_at: now.toISOString(),
         expires_at: expiresAt,
         updated_at: now.toISOString(),
@@ -136,8 +139,8 @@ export async function POST(request: NextRequest) {
     }
 
     // Audit log
-    await supabase.from('audit_logs').insert({
-      user_id: session.user.id,
+    await admin.from('audit_logs').insert({
+      user_id: user.id,
       action: 'claim_translation',
       resource_type: 'task',
       resource_id: taskId,

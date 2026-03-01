@@ -1,3 +1,4 @@
+import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
 
@@ -15,17 +16,19 @@ import { NextRequest, NextResponse } from 'next/server'
 export async function POST(request: NextRequest) {
   try {
     const supabase = await createClient()
-    const { data: { session } } = await supabase.auth.getSession()
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
 
-    if (!session) {
+    if (authError || !user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
+    const admin = createAdminClient()
+
     // Verify translator role
-    const { data: role } = await supabase
+    const { data: role } = await admin
       .from('user_roles')
       .select('role')
-      .eq('user_id', session.user.id)
+      .eq('user_id', user.id)
       .eq('role', 'translator')
       .single()
 
@@ -52,7 +55,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Fetch the task — must be translation type, claimed by this user
-    const { data: task, error: fetchError } = await supabase
+    const { data: task, error: fetchError } = await admin
       .from('tasks')
       .select('id, task_type, status, claimed_by, audio_clip_id, expires_at')
       .eq('id', taskId)
@@ -67,7 +70,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Task is not in claimed state' }, { status: 409 })
     }
 
-    if (task.claimed_by !== session.user.id) {
+    if (task.claimed_by !== user.id) {
       return NextResponse.json({ error: 'You have not claimed this task' }, { status: 403 })
     }
 
@@ -77,7 +80,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Verify clip belongs to this task and user is not the uploader or transcriber
-    const { data: clip, error: clipError } = await supabase
+    const { data: clip, error: clipError } = await admin
       .from('audio_clips')
       .select('id, uploader_id, status')
       .eq('id', task.audio_clip_id)
@@ -87,15 +90,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Audio clip not found' }, { status: 404 })
     }
 
-    if (clip.uploader_id === session.user.id) {
+    if (clip.uploader_id === user.id) {
       return NextResponse.json({ error: 'You cannot translate your own audio clip' }, { status: 403 })
     }
 
-    const { data: ownTranscription } = await supabase
+    const { data: ownTranscription } = await admin
       .from('transcriptions')
       .select('transcriber_id')
       .eq('audio_clip_id', task.audio_clip_id)
-      .eq('transcriber_id', session.user.id)
+      .eq('transcriber_id', user.id)
       .maybeSingle()
 
     if (ownTranscription) {
@@ -105,12 +108,12 @@ export async function POST(request: NextRequest) {
     const now = new Date().toISOString()
 
     // Upsert translation record
-    const { error: translationError } = await supabase
+    const { error: translationError } = await admin
       .from('translations')
       .upsert(
         {
           audio_clip_id: task.audio_clip_id,
-          translator_id: session.user.id,
+          translator_id: user.id,
           content: content.trim(),
           speaker_turns: speakerTurns,
           updated_at: now,
@@ -124,7 +127,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Mark task as submitted
-    const { error: taskUpdateError } = await supabase
+    const { error: taskUpdateError } = await admin
       .from('tasks')
       .update({ status: 'submitted', submitted_at: now, updated_at: now })
       .eq('id', taskId)
@@ -135,13 +138,13 @@ export async function POST(request: NextRequest) {
     }
 
     // Advance clip to translation_qc
-    await supabase
+    await admin
       .from('audio_clips')
       .update({ status: 'translation_qc', updated_at: now })
       .eq('id', task.audio_clip_id)
 
     // Create translation_qc task for reviewer queue
-    const { error: qcTaskError } = await supabase
+    const { error: qcTaskError } = await admin
       .from('tasks')
       .insert({
         audio_clip_id: task.audio_clip_id,
@@ -154,8 +157,8 @@ export async function POST(request: NextRequest) {
     }
 
     // Audit log
-    await supabase.from('audit_logs').insert({
-      user_id: session.user.id,
+    await admin.from('audit_logs').insert({
+      user_id: user.id,
       action: 'submit_translation',
       resource_type: 'task',
       resource_id: taskId,

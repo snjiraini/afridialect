@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { NextRequest, NextResponse } from 'next/server'
 
 const AUDIO_QC_REJECTION_REASONS = [
@@ -25,17 +26,19 @@ const AUDIO_QC_REJECTION_REASONS = [
 export async function POST(request: NextRequest) {
   try {
     const supabase = await createClient()
-    const { data: { session } } = await supabase.auth.getSession()
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
 
-    if (!session) {
+    if (authError || !user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
+    const admin = createAdminClient()
+
     // Verify reviewer role
-    const { data: role } = await supabase
+    const { data: role } = await admin
       .from('user_roles')
       .select('role')
-      .eq('user_id', session.user.id)
+      .eq('user_id', user.id)
       .eq('role', 'reviewer')
       .single()
 
@@ -63,7 +66,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Fetch the task — must be audio_qc type, still available (unclaimed queue style)
-    const { data: task, error: fetchError } = await supabase
+    const { data: task, error: fetchError } = await admin
       .from('tasks')
       .select('id, task_type, status, audio_clip_id')
       .eq('id', taskId)
@@ -79,7 +82,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Enforce: reviewer cannot review their own upload
-    const { data: clip, error: clipError } = await supabase
+    const { data: clip, error: clipError } = await admin
       .from('audio_clips')
       .select('id, uploader_id, audio_url, status')
       .eq('id', task.audio_clip_id)
@@ -89,18 +92,18 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Audio clip not found' }, { status: 404 })
     }
 
-    if (clip.uploader_id === session.user.id) {
+    if (clip.uploader_id === user.id) {
       return NextResponse.json({ error: 'You cannot review your own audio clip' }, { status: 403 })
     }
 
     const now = new Date().toISOString()
 
     // Record the QC review
-    const { error: reviewError } = await supabase
+    const { error: reviewError } = await admin
       .from('qc_reviews')
       .insert({
         audio_clip_id: task.audio_clip_id,
-        reviewer_id: session.user.id,
+        reviewer_id: user.id,
         review_type: 'audio_qc',
         decision,
         reasons,
@@ -113,7 +116,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Mark the task as submitted
-    const { error: taskUpdateError } = await supabase
+    const { error: taskUpdateError } = await admin
       .from('tasks')
       .update({ status: 'submitted', submitted_at: now, updated_at: now })
       .eq('id', taskId)
@@ -125,13 +128,13 @@ export async function POST(request: NextRequest) {
 
     if (decision === 'approve') {
       // Advance clip to transcription_ready
-      await supabase
+      await admin
         .from('audio_clips')
         .update({ status: 'transcription_ready', approved_at: now, updated_at: now })
         .eq('id', task.audio_clip_id)
 
       // Create transcription task
-      const { error: transcriptionTaskError } = await supabase
+      const { error: transcriptionTaskError } = await admin
         .from('tasks')
         .insert({
           audio_clip_id: task.audio_clip_id,
@@ -145,15 +148,15 @@ export async function POST(request: NextRequest) {
       }
     } else {
       // Reject: advance clip to audio_rejected
-      await supabase
+      await admin
         .from('audio_clips')
         .update({ status: 'audio_rejected', rejected_at: now, updated_at: now })
         .eq('id', task.audio_clip_id)
     }
 
     // Audit log
-    await supabase.from('audit_logs').insert({
-      user_id: session.user.id,
+    await admin.from('audit_logs').insert({
+      user_id: user.id,
       action: decision === 'approve' ? 'approve_audio_qc' : 'reject_audio_qc',
       resource_type: 'task',
       resource_id: taskId,

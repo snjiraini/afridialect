@@ -12,12 +12,9 @@ import { NextRequest, NextResponse } from 'next/server'
 
 export async function POST(request: NextRequest) {
   const supabase = await createClient()
-  
-  const {
-    data: { session },
-  } = await supabase.auth.getSession()
+  const { data: { user }, error: authError } = await supabase.auth.getUser()
 
-  if (!session) {
+  if (authError || !user) {
     return NextResponse.json(
       { error: 'Unauthorized' },
       { status: 401 }
@@ -25,10 +22,11 @@ export async function POST(request: NextRequest) {
   }
 
   // Check if requesting user is admin
-  const { data: adminRole } = await supabase
+  const adminSupabase = createAdminClient()
+  const { data: adminRole } = await adminSupabase
     .from('user_roles')
     .select('role')
-    .eq('user_id', session.user.id)
+    .eq('user_id', user.id)
     .eq('role', 'admin')
     .single()
 
@@ -60,8 +58,6 @@ export async function POST(request: NextRequest) {
     }
 
     // Use admin client to create user (bypasses email existence check)
-    const adminSupabase = createAdminClient()
-    
     const { data, error } = await adminSupabase.auth.admin.createUser({
       email,
       password,
@@ -80,14 +76,14 @@ export async function POST(request: NextRequest) {
     }
 
     // Log the action
-    await supabase.from('audit_logs').insert({
-      user_id: session.user.id,
+    await adminSupabase.from('audit_logs').insert({
+      user_id: user.id,
       action: 'user_created',
       resource_type: 'user',
       resource_id: data.user.id,
       details: {
         email: email,
-        created_by: session.user.id,
+        created_by: user.id,
         method: 'admin_api',
       },
     })

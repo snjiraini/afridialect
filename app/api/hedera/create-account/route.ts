@@ -6,6 +6,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 import { createHederaAccount } from '@/lib/hedera/account'
 
@@ -13,21 +14,20 @@ export async function POST(request: NextRequest) {
   try {
     // Verify authentication
     const supabase = await createClient()
-    const {
-      data: { session },
-    } = await supabase.auth.getSession()
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
 
-    if (!session) {
+    if (authError || !user) {
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }
       )
     }
 
-    const userId = session.user.id
+    const admin = createAdminClient()
+    const userId = user.id
 
     // Check if user already has a Hedera account
-    const { data: existingProfile } = await supabase
+    const { data: existingProfile } = await admin
       .from('profiles')
       .select('hedera_account_id, kms_key_id')
       .eq('id', userId)
@@ -49,12 +49,11 @@ export async function POST(request: NextRequest) {
     console.log(`Hedera account created: ${result.accountId}`)
 
     // Update user profile with Hedera account details
-    const { error: updateError } = await supabase
+    const { error: updateError } = await admin
       .from('profiles')
       .update({
         hedera_account_id: result.accountId,
         kms_key_id: result.kmsKeyId,
-        // Note: evm_address not in current schema, but stored in Hedera
       })
       .eq('id', userId)
 
@@ -74,7 +73,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Log successful account creation
-    await supabase.from('audit_logs').insert({
+    await admin.from('audit_logs').insert({
       user_id: userId,
       action: 'hedera_account_created',
       resource_type: 'account',

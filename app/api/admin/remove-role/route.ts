@@ -4,28 +4,28 @@
  * Removes a role from a user (admin only)
  */
 
+import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
 
 export async function POST(request: NextRequest) {
   const supabase = await createClient()
-  
-  const {
-    data: { session },
-  } = await supabase.auth.getSession()
+  const { data: { user }, error: authError } = await supabase.auth.getUser()
 
-  if (!session) {
+  if (authError || !user) {
     return NextResponse.json(
       { error: 'Unauthorized' },
       { status: 401 }
     )
   }
 
+  const admin = createAdminClient()
+
   // Check if requesting user is admin
-  const { data: adminRole } = await supabase
+  const { data: adminRole } = await admin
     .from('user_roles')
     .select('role')
-    .eq('user_id', session.user.id)
+    .eq('user_id', user.id)
     .eq('role', 'admin')
     .single()
 
@@ -48,7 +48,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Prevent removing your own admin role
-    if (userId === session.user.id && role === 'admin') {
+    if (userId === user.id && role === 'admin') {
       return NextResponse.json(
         { error: 'Cannot remove your own admin role' },
         { status: 400 }
@@ -56,7 +56,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Remove role
-    const { error: deleteError } = await supabase
+    const { error: deleteError } = await admin
       .from('user_roles')
       .delete()
       .eq('user_id', userId)
@@ -65,14 +65,14 @@ export async function POST(request: NextRequest) {
     if (deleteError) throw deleteError
 
     // Log the action
-    await supabase.from('audit_logs').insert({
-      user_id: session.user.id,
+    await admin.from('audit_logs').insert({
+      user_id: user.id,
       action: 'role_removed',
       resource_type: 'user',
       resource_id: userId,
       details: {
         role: role,
-        removed_by: session.user.id,
+        removed_by: user.id,
       },
     })
 

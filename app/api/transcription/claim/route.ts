@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { NextRequest, NextResponse } from 'next/server'
 
 /**
@@ -16,17 +17,19 @@ import { NextRequest, NextResponse } from 'next/server'
 export async function POST(request: NextRequest) {
   try {
     const supabase = await createClient()
-    const { data: { session } } = await supabase.auth.getSession()
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
 
-    if (!session) {
+    if (authError || !user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
+    const admin = createAdminClient()
+
     // Verify transcriber role
-    const { data: role } = await supabase
+    const { data: role } = await admin
       .from('user_roles')
       .select('role')
-      .eq('user_id', session.user.id)
+      .eq('user_id', user.id)
       .eq('role', 'transcriber')
       .single()
 
@@ -42,12 +45,12 @@ export async function POST(request: NextRequest) {
     }
 
     // Check user has no other active claimed transcription task
-    const { data: existingClaim } = await supabase
+    const { data: existingClaim } = await admin
       .from('tasks')
       .select('id')
       .eq('task_type', 'transcription')
       .eq('status', 'claimed')
-      .eq('claimed_by', session.user.id)
+      .eq('claimed_by', user.id)
       .maybeSingle()
 
     if (existingClaim && existingClaim.id !== taskId) {
@@ -58,7 +61,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Fetch the task
-    const { data: task, error: fetchError } = await supabase
+    const { data: task, error: fetchError } = await admin
       .from('tasks')
       .select('id, task_type, status, audio_clip_id')
       .eq('id', taskId)
@@ -74,7 +77,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Enforce: transcriber cannot transcribe their own upload
-    const { data: clip, error: clipError } = await supabase
+    const { data: clip, error: clipError } = await admin
       .from('audio_clips')
       .select('id, uploader_id')
       .eq('id', task.audio_clip_id)
@@ -84,19 +87,19 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Audio clip not found' }, { status: 404 })
     }
 
-    if (clip.uploader_id === session.user.id) {
+    if (clip.uploader_id === user.id) {
       return NextResponse.json({ error: 'You cannot transcribe your own audio clip' }, { status: 403 })
     }
 
     const now = new Date()
     const expiresAt = new Date(now.getTime() + 24 * 60 * 60 * 1000).toISOString()
 
-    // Claim the task
-    const { error: updateError } = await supabase
+    // Claim the task atomically
+    const { error: updateError } = await admin
       .from('tasks')
       .update({
         status: 'claimed',
-        claimed_by: session.user.id,
+        claimed_by: user.id,
         claimed_at: now.toISOString(),
         expires_at: expiresAt,
         updated_at: now.toISOString(),
@@ -110,8 +113,8 @@ export async function POST(request: NextRequest) {
     }
 
     // Audit log
-    await supabase.from('audit_logs').insert({
-      user_id: session.user.id,
+    await admin.from('audit_logs').insert({
+      user_id: user.id,
       action: 'claim_transcription_task',
       resource_type: 'task',
       resource_id: taskId,

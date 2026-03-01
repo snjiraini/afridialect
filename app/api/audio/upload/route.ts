@@ -1,3 +1,4 @@
+import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
 import { v4 as uuidv4 } from 'uuid'
@@ -34,17 +35,19 @@ async function getAudioDuration(file: File): Promise<number> {
 export async function POST(request: NextRequest) {
   try {
     const supabase = await createClient()
-    const { data: { session } } = await supabase.auth.getSession()
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
 
-    if (!session) {
+    if (authError || !user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
+    const admin = createAdminClient()
+
     // Check if user has uploader role
-    const { data: role } = await supabase
+    const { data: role } = await admin
       .from('user_roles')
       .select('role')
-      .eq('user_id', session.user.id)
+      .eq('user_id', user.id)
       .eq('role', 'uploader')
       .single()
 
@@ -94,7 +97,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Get dialect ID
-    const { data: dialectData, error: dialectError } = await supabase
+    const { data: dialectData, error: dialectError } = await admin
       .from('dialects')
       .select('id')
       .eq('code', dialect)
@@ -114,9 +117,9 @@ export async function POST(request: NextRequest) {
     const clipId = uuidv4()
     
     // Create storage path: {user_id}/{clip_id}.{ext}
-    const storagePath = `${session.user.id}/${clipId}.${fileExtension}`
+    const storagePath = `${user.id}/${clipId}.${fileExtension}`
 
-    // Upload to Supabase Storage
+    // Upload to Supabase Storage (use user client — storage RLS is scoped to user)
     const { data: uploadData, error: uploadError } = await supabase
       .storage
       .from('audio-staging')
@@ -144,11 +147,11 @@ export async function POST(request: NextRequest) {
     const duration = 35 // Placeholder
 
     // Create database record
-    const { data: clipData, error: clipError } = await supabase
+    const { data: clipData, error: clipError } = await admin
       .from('audio_clips')
       .insert({
         id: clipId,
-        uploader_id: session.user.id,
+        uploader_id: user.id,
         dialect_id: dialectData.id,
         audio_url: publicUrl,
         duration_seconds: duration,
@@ -180,8 +183,8 @@ export async function POST(request: NextRequest) {
     }
 
     // Log audit trail
-    await supabase.from('audit_logs').insert({
-      user_id: session.user.id,
+    await admin.from('audit_logs').insert({
+      user_id: user.id,
       action: 'audio_upload',
       resource_type: 'audio_clip',
       resource_id: clipId,
@@ -193,7 +196,7 @@ export async function POST(request: NextRequest) {
     })
 
     // Create audio_qc task so reviewers can pick it up immediately
-    const { error: qcTaskError } = await supabase
+    const { error: qcTaskError } = await admin
       .from('tasks')
       .insert({
         audio_clip_id: clipId,
@@ -206,7 +209,7 @@ export async function POST(request: NextRequest) {
       console.error('[audio/upload] audio_qc task creation failed:', qcTaskError)
     } else {
       // Advance clip status so the state machine is consistent
-      await supabase
+      await admin
         .from('audio_clips')
         .update({ status: 'audio_qc', updated_at: new Date().toISOString() })
         .eq('id', clipId)

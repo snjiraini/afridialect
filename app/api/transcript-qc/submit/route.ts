@@ -1,3 +1,4 @@
+import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
 
@@ -23,17 +24,19 @@ const TRANSCRIPT_QC_REJECTION_REASONS = [
 export async function POST(request: NextRequest) {
   try {
     const supabase = await createClient()
-    const { data: { session } } = await supabase.auth.getSession()
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
 
-    if (!session) {
+    if (authError || !user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
+    const admin = createAdminClient()
+
     // Verify reviewer role
-    const { data: role } = await supabase
+    const { data: role } = await admin
       .from('user_roles')
       .select('role')
-      .eq('user_id', session.user.id)
+      .eq('user_id', user.id)
       .eq('role', 'reviewer')
       .single()
 
@@ -61,7 +64,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Fetch the task — must be transcript_qc type and available/claimed
-    const { data: task, error: fetchError } = await supabase
+    const { data: task, error: fetchError } = await admin
       .from('tasks')
       .select('id, task_type, status, audio_clip_id')
       .eq('id', taskId)
@@ -77,7 +80,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Enforce one-task-per-item: reviewer cannot review their own upload
-    const { data: clip, error: clipError } = await supabase
+    const { data: clip, error: clipError } = await admin
       .from('audio_clips')
       .select('id, uploader_id, status')
       .eq('id', task.audio_clip_id)
@@ -87,29 +90,29 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Audio clip not found' }, { status: 404 })
     }
 
-    if (clip.uploader_id === session.user.id) {
+    if (clip.uploader_id === user.id) {
       return NextResponse.json({ error: 'You cannot review your own audio clip' }, { status: 403 })
     }
 
     // Also enforce: reviewer cannot review a transcription they created
-    const { data: transcription } = await supabase
+    const { data: transcription } = await admin
       .from('transcriptions')
       .select('transcriber_id')
       .eq('audio_clip_id', task.audio_clip_id)
       .single()
 
-    if (transcription?.transcriber_id === session.user.id) {
+    if (transcription?.transcriber_id === user.id) {
       return NextResponse.json({ error: 'You cannot review a transcription you created' }, { status: 403 })
     }
 
     const now = new Date().toISOString()
 
     // Record the QC review
-    const { error: reviewError } = await supabase
+    const { error: reviewError } = await admin
       .from('qc_reviews')
       .insert({
         audio_clip_id: task.audio_clip_id,
-        reviewer_id: session.user.id,
+        reviewer_id: user.id,
         review_type: 'transcript_qc',
         decision,
         reasons,
@@ -122,7 +125,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Mark task as submitted
-    const { error: taskUpdateError } = await supabase
+    const { error: taskUpdateError } = await admin
       .from('tasks')
       .update({ status: 'submitted', submitted_at: now, updated_at: now })
       .eq('id', taskId)
@@ -134,13 +137,13 @@ export async function POST(request: NextRequest) {
 
     if (decision === 'approve') {
       // Advance clip to translation_ready
-      await supabase
+      await admin
         .from('audio_clips')
         .update({ status: 'translation_ready', updated_at: now })
         .eq('id', task.audio_clip_id)
 
       // Create translation task for translator queue
-      const { error: translationTaskError } = await supabase
+      const { error: translationTaskError } = await admin
         .from('tasks')
         .insert({
           audio_clip_id: task.audio_clip_id,
@@ -153,15 +156,15 @@ export async function POST(request: NextRequest) {
       }
     } else {
       // Reject: clip goes back for re-transcription
-      await supabase
+      await admin
         .from('audio_clips')
         .update({ status: 'transcript_rejected', rejected_at: now, updated_at: now })
         .eq('id', task.audio_clip_id)
     }
 
     // Audit log
-    await supabase.from('audit_logs').insert({
-      user_id: session.user.id,
+    await admin.from('audit_logs').insert({
+      user_id: user.id,
       action: decision === 'approve' ? 'approve_transcript_qc' : 'reject_transcript_qc',
       resource_type: 'task',
       resource_id: taskId,
