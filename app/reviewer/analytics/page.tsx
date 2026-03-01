@@ -76,28 +76,26 @@ export default async function ReviewerAnalyticsPage() {
     redirect('/dashboard')
   }
 
-  // Fetch analytics data from the API route
-  const baseUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000'
   let analytics: AnalyticsData | null = null
 
   try {
-    // Call the analytics API directly using admin client logic to avoid HTTP in server component
+    // Aggregate directly via admin client (avoids HTTP self-call in server component)
     const { data: reviews } = await admin
       .from('qc_reviews')
-      .select('review_type, decision, rejection_reason, created_at')
+      .select('review_type, decision, reasons, created_at')
       .order('created_at', { ascending: false })
       .limit(5000)
 
     const allReviews = reviews ?? []
     const total = allReviews.length
-    const approved = allReviews.filter((r) => r.decision === 'approved').length
-    const rejected = allReviews.filter((r) => r.decision === 'rejected').length
+    const approved = allReviews.filter((r) => r.decision === 'approve').length
+    const rejected = allReviews.filter((r) => r.decision === 'reject').length
 
     const byType: AnalyticsData['byType'] = {}
     for (const type of ['audio_qc', 'transcript_qc', 'translation_qc']) {
       const typeReviews = allReviews.filter((r) => r.review_type === type)
-      const typeApproved = typeReviews.filter((r) => r.decision === 'approved').length
-      const typeRejected = typeReviews.filter((r) => r.decision === 'rejected').length
+      const typeApproved = typeReviews.filter((r) => r.decision === 'approve').length
+      const typeRejected = typeReviews.filter((r) => r.decision === 'reject').length
       byType[type] = {
         total: typeReviews.length,
         approved: typeApproved,
@@ -107,9 +105,12 @@ export default async function ReviewerAnalyticsPage() {
     }
 
     const reasonCounts: Record<string, number> = {}
-    for (const r of allReviews.filter((r) => r.rejection_reason)) {
-      const key = r.rejection_reason as string
-      reasonCounts[key] = (reasonCounts[key] ?? 0) + 1
+    for (const r of allReviews) {
+      if (r.decision === 'reject' && Array.isArray(r.reasons)) {
+        for (const reason of r.reasons as string[]) {
+          reasonCounts[reason] = (reasonCounts[reason] ?? 0) + 1
+        }
+      }
     }
     const topRejectionReasons = Object.entries(reasonCounts)
       .sort((a, b) => b[1] - a[1])
@@ -128,8 +129,8 @@ export default async function ReviewerAnalyticsPage() {
     for (const r of allReviews) {
       const day = r.created_at?.slice(0, 10)
       if (day && activityMap[day]) {
-        if (r.decision === 'approved') activityMap[day].approved++
-        else if (r.decision === 'rejected') activityMap[day].rejected++
+        if (r.decision === 'approve') activityMap[day].approved++
+        else if (r.decision === 'reject') activityMap[day].rejected++
       }
     }
     const recentActivity = Object.entries(activityMap).map(([date, v]) => ({

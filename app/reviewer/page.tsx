@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import Topbar from '@/components/layouts/Topbar'
@@ -16,7 +17,6 @@ export default async function ReviewerPage() {
     redirect('/auth/login')
   }
 
-  const { createAdminClient } = await import('@/lib/supabase/admin')
   const admin = createAdminClient()
 
   // Verify reviewer role
