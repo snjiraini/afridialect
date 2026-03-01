@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import Topbar from '@/components/layouts/Topbar'
@@ -10,17 +11,19 @@ import Topbar from '@/components/layouts/Topbar'
  */
 export default async function TranscriberPage() {
   const supabase = await createClient()
-  const { data: { session } } = await supabase.auth.getSession()
+  const { data: { user } } = await supabase.auth.getUser()
 
-  if (!session) {
+  if (!user) {
     redirect('/auth/login')
   }
 
+  const admin = createAdminClient()
+
   // Verify transcriber role
-  const { data: role } = await supabase
+  const { data: role } = await admin
     .from('user_roles')
     .select('role')
-    .eq('user_id', session.user.id)
+    .eq('user_id', user.id)
     .eq('role', 'transcriber')
     .single()
 
@@ -48,7 +51,7 @@ export default async function TranscriberPage() {
   }
 
   // Fetch available transcription tasks (not yet claimed by anyone)
-  const { data: availableTasks } = await supabase
+  const { data: availableTasks } = await admin
     .from('tasks')
     .select(`
       id,
@@ -70,7 +73,7 @@ export default async function TranscriberPage() {
     .limit(50)
 
   // Fetch this user's currently claimed task (if any)
-  const { data: claimedTask } = await supabase
+  const { data: claimedTask } = await admin
     .from('tasks')
     .select(`
       id,
@@ -87,14 +90,14 @@ export default async function TranscriberPage() {
     `)
     .eq('task_type', 'transcription')
     .eq('status', 'claimed')
-    .eq('claimed_by', session.user.id)
+    .eq('claimed_by', user.id)
     .maybeSingle()
 
   // Filter out clips uploaded by the current user (one-task-per-item rule)
   const filtered = (availableTasks ?? []).filter((t) => {
     // @ts-ignore
     const clip = Array.isArray(t.audio_clips) ? t.audio_clips[0] : t.audio_clips
-    return clip?.uploader_id !== session.user.id
+    return clip?.uploader_id !== user.id
   })
 
   const formatExpiry = (expiresAt: string | null) => {

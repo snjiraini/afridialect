@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { redirect, notFound } from 'next/navigation'
 import Topbar from '@/components/layouts/Topbar'
 import TranscriptionForm from './components/TranscriptionForm'
@@ -15,17 +16,19 @@ export default async function TranscriberTaskPage({ params }: Props) {
   const { taskId } = await params
 
   const supabase = await createClient()
-  const { data: { session } } = await supabase.auth.getSession()
+  const { data: { user } } = await supabase.auth.getUser()
 
-  if (!session) {
+  if (!user) {
     redirect('/auth/login')
   }
 
+  const admin = createAdminClient()
+
   // Verify transcriber role
-  const { data: role } = await supabase
+  const { data: role } = await admin
     .from('user_roles')
     .select('role')
-    .eq('user_id', session.user.id)
+    .eq('user_id', user.id)
     .eq('role', 'transcriber')
     .single()
 
@@ -34,7 +37,7 @@ export default async function TranscriberTaskPage({ params }: Props) {
   }
 
   // Fetch the task with full clip + dialect info
-  const { data: task, error } = await supabase
+  const { data: task, error } = await admin
     .from('tasks')
     .select(`
       id,
@@ -74,7 +77,7 @@ export default async function TranscriberTaskPage({ params }: Props) {
   }
 
   // Enforce: transcriber cannot transcribe their own upload
-  if (clip.uploader_id === session.user.id) {
+  if (clip.uploader_id === user.id) {
     redirect('/transcriber')
   }
 
@@ -84,7 +87,7 @@ export default async function TranscriberTaskPage({ params }: Props) {
   }
 
   // If claimed by someone else, redirect
-  if (task.status === 'claimed' && task.claimed_by !== session.user.id) {
+  if (task.status === 'claimed' && task.claimed_by !== user.id) {
     redirect('/transcriber')
   }
 
@@ -106,11 +109,11 @@ export default async function TranscriberTaskPage({ params }: Props) {
   }
 
   // Fetch existing transcription draft if this user already started
-  const { data: existingTranscription } = await supabase
+  const { data: existingTranscription } = await admin
     .from('transcriptions')
     .select('content, speaker_count, speaker_turns, tags')
     .eq('audio_clip_id', task.audio_clip_id)
-    .eq('transcriber_id', session.user.id)
+    .eq('transcriber_id', user.id)
     .maybeSingle()
 
   const description = (clip.metadata as Record<string, string>)?.description ?? ''
@@ -142,7 +145,7 @@ export default async function TranscriberTaskPage({ params }: Props) {
           speakerAgeRange={clip.speaker_age_range ?? 'unknown'}
           description={description}
           signedAudioUrl={signedAudioUrl}
-          alreadyClaimed={task.status === 'claimed' && task.claimed_by === session.user.id}
+          alreadyClaimed={task.status === 'claimed' && task.claimed_by === user.id}
           expiresAt={task.expires_at ?? null}
           expiryLabel={formatExpiry(task.expires_at)}
           initialContent={existingTranscription?.content ?? ''}
