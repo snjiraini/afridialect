@@ -5,22 +5,25 @@ import Topbar from '@/components/layouts/Topbar'
 
 /**
  * Reviewer / QC queue.
- * Shows both audio_qc and transcript_qc available tasks.
+ * Shows audio_qc, transcript_qc, and translation_qc available tasks.
  * Excludes tasks for clips the reviewer uploaded (one-task-per-item).
  */
 export default async function ReviewerPage() {
   const supabase = await createClient()
-  const { data: { session } } = await supabase.auth.getSession()
+  const { data: { user } } = await supabase.auth.getUser()
 
-  if (!session) {
+  if (!user) {
     redirect('/auth/login')
   }
 
+  const { createAdminClient } = await import('@/lib/supabase/admin')
+  const admin = createAdminClient()
+
   // Verify reviewer role
-  const { data: role } = await supabase
+  const { data: role } = await admin
     .from('user_roles')
     .select('role')
-    .eq('user_id', session.user.id)
+    .eq('user_id', user.id)
     .eq('role', 'reviewer')
     .single()
 
@@ -47,8 +50,8 @@ export default async function ReviewerPage() {
     )
   }
 
-  // Fetch all available audio_qc AND transcript_qc tasks
-  const { data: allTasks } = await supabase
+  // Fetch all available audio_qc, transcript_qc, and translation_qc tasks
+  const { data: allTasks } = await admin
     .from('tasks')
     .select(`
       id,
@@ -65,7 +68,7 @@ export default async function ReviewerPage() {
         dialects ( name, code )
       )
     `)
-    .in('task_type', ['audio_qc', 'transcript_qc'])
+    .in('task_type', ['audio_qc', 'transcript_qc', 'translation_qc'])
     .eq('status', 'available')
     .order('created_at', { ascending: true })
     .limit(100)
@@ -74,11 +77,12 @@ export default async function ReviewerPage() {
   const filtered = (allTasks ?? []).filter((t) => {
     // @ts-ignore
     const clip = Array.isArray(t.audio_clips) ? t.audio_clips[0] : t.audio_clips
-    return clip?.uploader_id !== session.user.id
+    return clip?.uploader_id !== user.id
   })
 
-  const audioQCTasks = filtered.filter((t) => t.task_type === 'audio_qc')
-  const transcriptQCTasks = filtered.filter((t) => t.task_type === 'transcript_qc')
+  const audioQCTasks       = filtered.filter((t) => t.task_type === 'audio_qc')
+  const transcriptQCTasks  = filtered.filter((t) => t.task_type === 'transcript_qc')
+  const translationQCTasks = filtered.filter((t) => t.task_type === 'translation_qc')
 
   function renderTask(task: typeof filtered[number]) {
     // @ts-ignore
@@ -95,7 +99,8 @@ export default async function ReviewerPage() {
       month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
     })
 
-    const isTranscriptQC = task.task_type === 'transcript_qc'
+    const isTranscriptQC  = task.task_type === 'transcript_qc'
+    const isTranslationQC = task.task_type === 'translation_qc'
 
     return (
       <div key={task.id} className="af-card p-5">
@@ -108,6 +113,14 @@ export default async function ReviewerPage() {
                   style={{ background: '#ede9fe', color: '#7c3aed' }}
                 >
                   Transcript QC
+                </span>
+              )}
+              {isTranslationQC && (
+                <span
+                  className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold"
+                  style={{ background: '#fef3c7', color: '#d97706' }}
+                >
+                  Translation QC
                 </span>
               )}
               <span
@@ -168,7 +181,7 @@ export default async function ReviewerPage() {
                 QC Queue
               </h2>
               <p className="text-sm mt-1" style={{ color: 'var(--af-muted)' }}>
-                Review audio clips and transcripts to advance items through the pipeline.
+                Review audio clips, transcripts, and translations to advance items through the pipeline.
               </p>
             </div>
             <div className="flex gap-3 flex-wrap">
@@ -184,12 +197,25 @@ export default async function ReviewerPage() {
               >
                 {transcriptQCTasks.length} transcript QC
               </span>
+              <span
+                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-sm font-medium"
+                style={{ background: '#fef3c7', color: '#d97706' }}
+              >
+                {translationQCTasks.length} translation QC
+              </span>
+              <Link
+                href="/reviewer/analytics"
+                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-sm font-medium border transition-all"
+                style={{ borderColor: 'var(--af-border)', color: 'var(--af-muted)' }}
+              >
+                📊 Analytics
+              </Link>
             </div>
           </div>
         </div>
 
         {/* Guidelines */}
-        <div className="grid md:grid-cols-2 gap-4">
+        <div className="grid md:grid-cols-3 gap-4">
           <div className="af-card p-5">
             <h3 className="text-sm font-semibold mb-3" style={{ color: 'var(--af-txt)' }}>
               🎙️ Audio QC Checklist
@@ -214,13 +240,37 @@ export default async function ReviewerPage() {
               <li className="flex items-start gap-2"><span style={{ color: 'var(--af-success)' }}>✓</span> Speaker count matches audio</li>
             </ul>
           </div>
+          <div className="af-card p-5">
+            <h3 className="text-sm font-semibold mb-3" style={{ color: 'var(--af-txt)' }}>
+              🌍 Translation QC Checklist
+            </h3>
+            <ul className="space-y-1.5 text-sm" style={{ color: 'var(--af-muted)' }}>
+              <li className="flex items-start gap-2"><span style={{ color: 'var(--af-success)' }}>✓</span> Meaning preserved from dialect source</li>
+              <li className="flex items-start gap-2"><span style={{ color: 'var(--af-success)' }}>✓</span> Translation is complete, no sections missing</li>
+              <li className="flex items-start gap-2"><span style={{ color: 'var(--af-success)' }}>✓</span> Natural, grammatically correct English</li>
+              <li className="flex items-start gap-2"><span style={{ color: 'var(--af-success)' }}>✓</span> Speaker turns preserved correctly</li>
+              <li className="flex items-start gap-2"><span style={{ color: 'var(--af-success)' }}>✓</span> Code-switching appropriately handled</li>
+            </ul>
+          </div>
         </div>
+
+        {/* Translation QC section — highest pipeline priority */}
+        {translationQCTasks.length > 0 && (
+          <div>
+            <h3 className="text-sm font-semibold mb-3 px-1" style={{ color: 'var(--af-txt)' }}>
+              🌍 Translation QC ({translationQCTasks.length})
+            </h3>
+            <div className="space-y-3">
+              {translationQCTasks.map(renderTask)}
+            </div>
+          </div>
+        )}
 
         {/* Transcript QC section */}
         {transcriptQCTasks.length > 0 && (
           <div>
             <h3 className="text-sm font-semibold mb-3 px-1" style={{ color: 'var(--af-txt)' }}>
-              Transcript QC ({transcriptQCTasks.length})
+              📝 Transcript QC ({transcriptQCTasks.length})
             </h3>
             <div className="space-y-3">
               {transcriptQCTasks.map(renderTask)}
@@ -232,7 +282,7 @@ export default async function ReviewerPage() {
         {audioQCTasks.length > 0 && (
           <div>
             <h3 className="text-sm font-semibold mb-3 px-1" style={{ color: 'var(--af-txt)' }}>
-              Audio QC ({audioQCTasks.length})
+              🎙️ Audio QC ({audioQCTasks.length})
             </h3>
             <div className="space-y-3">
               {audioQCTasks.map(renderTask)}
