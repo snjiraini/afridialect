@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { redirect, notFound } from 'next/navigation'
 import Topbar from '@/components/layouts/Topbar'
 import TranslationForm from './components/TranslationForm'
@@ -16,17 +17,19 @@ export default async function TranslatorTaskPage({ params }: Props) {
   const { taskId } = await params
 
   const supabase = await createClient()
-  const { data: { session } } = await supabase.auth.getSession()
+  const { data: { user } } = await supabase.auth.getUser()
 
-  if (!session) {
+  if (!user) {
     redirect('/auth/login')
   }
 
+  const admin = createAdminClient()
+
   // Verify translator role
-  const { data: role } = await supabase
+  const { data: role } = await admin
     .from('user_roles')
     .select('role')
-    .eq('user_id', session.user.id)
+    .eq('user_id', user.id)
     .eq('role', 'translator')
     .single()
 
@@ -35,7 +38,7 @@ export default async function TranslatorTaskPage({ params }: Props) {
   }
 
   // Fetch the task with full clip + dialect info
-  const { data: task, error } = await supabase
+  const { data: task, error } = await admin
     .from('tasks')
     .select(`
       id,
@@ -73,16 +76,16 @@ export default async function TranslatorTaskPage({ params }: Props) {
   }
 
   // Enforce: translator cannot translate their own upload
-  if (clip.uploader_id === session.user.id) {
+  if (clip.uploader_id === user.id) {
     redirect('/translator')
   }
 
   // Enforce: translator cannot translate a clip they transcribed
-  const { data: ownTranscription } = await supabase
+  const { data: ownTranscription } = await admin
     .from('transcriptions')
     .select('transcriber_id')
     .eq('audio_clip_id', task.audio_clip_id)
-    .eq('transcriber_id', session.user.id)
+    .eq('transcriber_id', user.id)
     .maybeSingle()
 
   if (ownTranscription) {
@@ -95,7 +98,7 @@ export default async function TranslatorTaskPage({ params }: Props) {
   }
 
   // If claimed by someone else, redirect
-  if (task.status === 'claimed' && task.claimed_by !== session.user.id) {
+  if (task.status === 'claimed' && task.claimed_by !== user.id) {
     redirect('/translator')
   }
 
@@ -103,32 +106,36 @@ export default async function TranslatorTaskPage({ params }: Props) {
   const dialectRaw = clip.dialects
   const dialect = Array.isArray(dialectRaw) ? dialectRaw[0] : dialectRaw
 
-  // Generate a signed URL for private bucket playback (2 hour TTL)
+  // Generate a signed URL for private bucket playback (2 hour TTL).
+  // Must use admin client — translators have no storage SELECT RLS policy.
   let signedAudioUrl: string | null = null
   if (clip.audio_url) {
     const urlParts = clip.audio_url.split('/audio-staging/')
     const storagePath = urlParts[1] ?? ''
     if (storagePath) {
-      const { data: signed } = await supabase.storage
+      const { data: signed, error: signError } = await admin.storage
         .from('audio-staging')
         .createSignedUrl(storagePath, 7200)
+      if (signError) {
+        console.error('[translator/taskId] createSignedUrl error:', signError)
+      }
       signedAudioUrl = signed?.signedUrl ?? null
     }
   }
 
   // Fetch the approved transcription (source text for translation)
-  const { data: transcription } = await supabase
+  const { data: transcription } = await admin
     .from('transcriptions')
     .select('content, speaker_count, speaker_turns, tags')
     .eq('audio_clip_id', task.audio_clip_id)
     .maybeSingle()
 
   // Fetch existing translation draft if this user already started
-  const { data: existingTranslation } = await supabase
+  const { data: existingTranslation } = await admin
     .from('translations')
     .select('content, speaker_turns')
     .eq('audio_clip_id', task.audio_clip_id)
-    .eq('translator_id', session.user.id)
+    .eq('translator_id', user.id)
     .maybeSingle()
 
   const formatExpiry = (expiresAt: string | null) => {
@@ -158,7 +165,7 @@ export default async function TranslatorTaskPage({ params }: Props) {
           transcriptionContent={transcription?.content ?? ''}
           transcriptionTags={transcription?.tags ?? []}
           signedAudioUrl={signedAudioUrl}
-          alreadyClaimed={task.status === 'claimed' && task.claimed_by === session.user.id}
+          alreadyClaimed={task.status === 'claimed' && task.claimed_by === user.id}
           expiresAt={task.expires_at ?? null}
           expiryLabel={formatExpiry(task.expires_at)}
           initialContent={existingTranslation?.content ?? ''}

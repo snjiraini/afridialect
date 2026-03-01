@@ -95,15 +95,19 @@ export default async function TranscriberTaskPage({ params }: Props) {
   const dialectRaw = clip.dialects
   const dialect = Array.isArray(dialectRaw) ? dialectRaw[0] : dialectRaw
 
-  // Generate a signed URL for private bucket playback (2 hour TTL)
+  // Generate a signed URL for private bucket playback (2 hour TTL).
+  // Must use admin client — transcribers have no storage SELECT RLS policy.
   let signedAudioUrl: string | null = null
   if (clip.audio_url) {
     const urlParts = clip.audio_url.split('/audio-staging/')
     const storagePath = urlParts[1] ?? ''
     if (storagePath) {
-      const { data: signed } = await supabase.storage
+      const { data: signed, error: signError } = await admin.storage
         .from('audio-staging')
         .createSignedUrl(storagePath, 7200)
+      if (signError) {
+        console.error('[transcriber/taskId] createSignedUrl error:', signError)
+      }
       signedAudioUrl = signed?.signedUrl ?? null
     }
   }

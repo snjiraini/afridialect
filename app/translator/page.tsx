@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import Topbar from '@/components/layouts/Topbar'
@@ -10,17 +11,19 @@ import Topbar from '@/components/layouts/Topbar'
  */
 export default async function TranslatorPage() {
   const supabase = await createClient()
-  const { data: { session } } = await supabase.auth.getSession()
+  const { data: { user } } = await supabase.auth.getUser()
 
-  if (!session) {
+  if (!user) {
     redirect('/auth/login')
   }
 
+  const admin = createAdminClient()
+
   // Verify translator role
-  const { data: role } = await supabase
+  const { data: role } = await admin
     .from('user_roles')
     .select('role')
-    .eq('user_id', session.user.id)
+    .eq('user_id', user.id)
     .eq('role', 'translator')
     .single()
 
@@ -48,7 +51,7 @@ export default async function TranslatorPage() {
   }
 
   // Fetch available translation tasks
-  const { data: availableTasks } = await supabase
+  const { data: availableTasks } = await admin
     .from('tasks')
     .select(`
       id,
@@ -70,7 +73,7 @@ export default async function TranslatorPage() {
     .limit(50)
 
   // Fetch this user's currently claimed translation task (if any)
-  const { data: claimedTask } = await supabase
+  const { data: claimedTask } = await admin
     .from('tasks')
     .select(`
       id,
@@ -84,14 +87,14 @@ export default async function TranslatorPage() {
     `)
     .eq('task_type', 'translation')
     .eq('status', 'claimed')
-    .eq('claimed_by', session.user.id)
+    .eq('claimed_by', user.id)
     .maybeSingle()
 
   // Collect clip IDs for clips the user transcribed (one-task-per-item)
-  const { data: myTranscriptions } = await supabase
+  const { data: myTranscriptions } = await admin
     .from('transcriptions')
     .select('audio_clip_id')
-    .eq('transcriber_id', session.user.id)
+    .eq('transcriber_id', user.id)
 
   const myTranscribedClipIds = new Set(
     (myTranscriptions ?? []).map((t) => t.audio_clip_id)
@@ -101,7 +104,7 @@ export default async function TranslatorPage() {
   const filtered = (availableTasks ?? []).filter((t) => {
     // @ts-ignore
     const clip = Array.isArray(t.audio_clips) ? t.audio_clips[0] : t.audio_clips
-    if (clip?.uploader_id === session.user.id) return false
+    if (clip?.uploader_id === user.id) return false
     if (myTranscribedClipIds.has(t.audio_clip_id)) return false
     return true
   })
