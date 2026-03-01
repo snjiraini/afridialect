@@ -225,9 +225,6 @@ PINATA_JWT=
 - Use AWS KMS for all cryptographic operations
 - Implement proper CORS policies for API routes
 
-### Current Phase Status
-**Active Phase:** Phase 3.2 - Hedera Integration ✅ COMPLETE
-**Next Phase:** Phase 3.3 - Profile & Admin Pages
 
 ### Important Notes
 - The project uses Next.js 16 with `proxy.ts` instead of `middleware.ts`
@@ -243,41 +240,7 @@ These rules were established after a full redesign session (February 2026) that 
 
 ---
 
-### Rule 1 — Dark Mode: Always Use a Blocking Inline Script (FOUC Prevention)
 
-**Problem discovered:** `ThemeProvider` initialised state as `'light'` on the server. On the client, a `useEffect` read `localStorage` and switched to `'dark'` — causing a white flash on every dark-mode page load.
-
-**Required pattern — `app/layout.tsx`:**
-```tsx
-const themeScript = `
-(function(){
-  try {
-    var stored = localStorage.getItem('af-theme');
-    var prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-    var theme = stored || (prefersDark ? 'dark' : 'light');
-    if (theme === 'dark') {
-      document.documentElement.classList.add('dark');
-    } else {
-      document.documentElement.classList.add('light-mode');
-    }
-  } catch(e) {}
-})();
-`
-
-// In <html> → <head>:
-<script dangerouslySetInnerHTML={{ __html: themeScript }} />
-```
-
-**Required pattern — `ThemeProvider.tsx`:**
-```tsx
-// Read theme from the DOM that the inline script already set — not from useState('light')
-function getInitialTheme(): Theme {
-  if (typeof window === 'undefined') return 'light'
-  return document.documentElement.classList.contains('dark') ? 'dark' : 'light'
-}
-
-const [theme, setTheme] = useState<Theme>(getInitialTheme)
-```
 
 **Rules:**
 - ✅ Always place the blocking `<script>` in `<head>` before React hydrates
@@ -288,29 +251,6 @@ const [theme, setTheme] = useState<Theme>(getInitialTheme)
 
 ---
 
-### Rule 2 — Hydration: Never Render Theme-Dependent Text During SSR
-
-**Problem discovered:** The Sidebar theme-toggle button used:
-```tsx
-// ❌ WRONG — causes React hydration mismatch
-aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
-```
-The server renders `theme = 'light'`, the client hydrates with `theme = 'dark'` (from DOM), so the `aria-label` strings differ → React hydration error.
-
-**Fix applied:**
-```tsx
-// ✅ CORRECT — static label, no SSR/client mismatch
-aria-label="Toggle light / dark mode"
-suppressHydrationWarning
-```
-
-**Rules:**
-- ✅ Use `suppressHydrationWarning` on any element whose attribute depends on client-only state (theme, locale, time, random values)
-- ✅ Keep `aria-label` values static or theme-neutral when the value derives from `theme` state
-- ❌ Never interpolate `theme`, `Date.now()`, `Math.random()`, or `window.*` into JSX attributes that are server-rendered
-- ❌ Never branch on `typeof window !== 'undefined'` inside a component's render path to produce different JSX
-
----
 
 ### Rule 3 — CSS: Never Mix `@apply` with Custom Tailwind Tokens Inside `@layer components`
 
@@ -433,19 +373,6 @@ useEffect(() => {
 
 ---
 
-### Rule 7 — Tailwind Dark Mode: Class Strategy Only
-
-**Project configuration:** `darkMode: 'class'` in `tailwind.config.js`. This means dark mode is controlled entirely by the `dark` class on `<html>`.
-
-**Rules:**
-- ✅ Dark mode CSS variables live in `.dark { }` in `globals.css`
-- ✅ The `dark` class is applied/removed by `ThemeProvider` via `document.documentElement.classList`
-- ✅ The blocking inline script in `layout.tsx` sets the class before React hydrates
-- ❌ Never use `darkMode: 'media'` — system preference is only a fallback for first-visit, controlled by the inline script
-- ❌ Never add `data-theme` attributes — the project uses only `class="dark"` / `class="light-mode"`
-- ❌ Never use Tailwind's `dark:` variant inside `@layer components` with `@apply` (see Rule 3)
-
----
 
 **Last Updated:** February 27, 2026
 

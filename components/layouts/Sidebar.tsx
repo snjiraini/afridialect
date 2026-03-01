@@ -16,7 +16,6 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { usePathname, useRouter } from 'next/navigation'
 import { useAuth } from '@/hooks/useAuth'
-import { useTheme } from '@/components/ThemeProvider'
 import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 
@@ -108,37 +107,6 @@ function SignOutIcon() {
   )
 }
 
-function SunIcon() {
-  return (
-    <svg
-      className="theme-sun absolute w-[18px] h-[18px] stroke-current fill-none"
-      strokeWidth={2}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      viewBox="0 0 24 24"
-      aria-hidden="true"
-    >
-      <circle cx="12" cy="12" r="4" />
-      <path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" />
-    </svg>
-  )
-}
-
-function MoonIcon() {
-  return (
-    <svg
-      className="theme-moon absolute w-[18px] h-[18px] stroke-current fill-none"
-      strokeWidth={2}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      viewBox="0 0 24 24"
-      aria-hidden="true"
-    >
-      <path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z" />
-    </svg>
-  )
-}
-
 /* ── Nav item definitions ─────────────────────────────────────────────────── */
 
 interface NavItem {
@@ -177,7 +145,6 @@ function initials(name?: string | null, email?: string | null): string {
 
 export default function Sidebar() {
   const { user, signOut }             = useAuth()
-  const { theme, toggleTheme }        = useTheme()
   const pathname                      = usePathname()
   const router                        = useRouter()
   const [userRoles, setUserRoles]     = useState<string[]>([])
@@ -228,16 +195,6 @@ export default function Sidebar() {
       }
     },
     [signOut, router, signingOut]
-  )
-
-  /** Theme toggle — stops propagation to avoid nav-link activation. */
-  const handleToggleTheme = useCallback(
-    (e: React.MouseEvent<HTMLButtonElement>) => {
-      e.preventDefault()
-      e.stopPropagation()
-      toggleTheme()
-    },
-    [toggleTheme]
   )
 
   const visibleNav = ALL_NAV_ITEMS.filter((item) => {
@@ -359,26 +316,6 @@ export default function Sidebar() {
         className="flex items-center gap-2 pt-3 flex-shrink-0"
         style={{ borderTop: '1px solid rgba(255,255,255,0.15)' }}
       >
-        {/* Theme toggle button — NOT wrapped in any Link */}
-        <button
-          type="button"
-          onClick={handleToggleTheme}
-          aria-label="Toggle light / dark mode"
-          suppressHydrationWarning
-          className="relative w-10 h-10 rounded-xl grid place-items-center cursor-pointer flex-shrink-0"
-          style={{
-            background: 'rgba(255,255,255,0.12)',
-            border: '1px solid rgba(255,255,255,0.22)',
-            color: 'var(--af-sidebar-text)',
-            transition: 'background 0.2s ease, transform 0.2s ease',
-          }}
-          onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-2px)' }}
-          onMouseLeave={(e) => { e.currentTarget.style.transform = '' }}
-        >
-          <SunIcon />
-          <MoonIcon />
-        </button>
-
         {/* Sign-out button — standalone, NOT wrapped in any Link */}
         {user && (
           <button
@@ -410,4 +347,5 @@ export default function Sidebar() {
     </aside>
   )
 }
+
 

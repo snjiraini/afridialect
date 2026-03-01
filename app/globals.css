@@ -56,37 +56,6 @@
   --af-badge-bg:        #128C7E;
 }
 
-/* ── Dark Mode ── */
-.dark {
-  --af-primary:         #39d0c3;
-  --af-primary-soft:    #2bb6aa;
-  --af-primary-light:   #0f2e2b;
-  --af-primary-hover:   #4dd8cc;
-
-  --af-bg:              #0b1214;
-  --af-panel:           #0f171a;
-  --af-panel-raised:    #141e22;
-
-  --af-sidebar-from:    #0f3f3a;
-  --af-sidebar-to:      #0b2f2b;
-  --af-sidebar-text:    #e9f5f4;
-
-  --af-txt:             #e7f1f1;
-  --af-txt-secondary:   #c5d5d8;
-  --af-muted:           #a6b5bb;
-
-  --af-line:            #1f2b31;
-
-  --af-search-bg:       #121c21;
-  --af-item-hover:      #122126;
-  --af-scroll-thumb:    #2b3b40;
-
-  --af-shadow-card:     0 4px 6px -1px rgba(0,0,0,.3), 0 2px 4px -2px rgba(0,0,0,.3);
-  --af-shadow-lg:       0 10px 15px -3px rgba(0,0,0,.3), 0 4px 6px -4px rgba(0,0,0,.3);
-
-  --af-badge-bg:        #39d0c3;
-}
-
 /* ═══════════════════════════════════════════════════════════════════════════
    BASE LAYER
    ═══════════════════════════════════════════════════════════════════════════ */
@@ -349,27 +318,15 @@
     background: #d1fae5;
     color: #065f46;
   }
-  .dark .badge-success {
-    background: rgba(16, 185, 129, 0.2);
-    color: #34d399;
-  }
 
   .badge-warning {
     background: #fef3c7;
     color: #92400e;
   }
-  .dark .badge-warning {
-    background: rgba(245, 158, 11, 0.2);
-    color: #fbbf24;
-  }
 
   .badge-danger {
     background: #fee2e2;
     color: #991b1b;
-  }
-  .dark .badge-danger {
-    background: rgba(239, 68, 68, 0.2);
-    color: #f87171;
   }
 
   .badge-neutral {
@@ -459,10 +416,6 @@
     backdrop-filter: blur(8px);
     -webkit-backdrop-filter: blur(8px);
     border: 1px solid rgba(255,255,255,0.2);
-  }
-  .dark .glass {
-    background: rgba(15,23,26,0.8);
-    border-color: rgba(255,255,255,0.08);
   }
 
   /* ── Page content shell (offset from sidebar) ── */
@@ -628,20 +581,3 @@
 .animation-delay-4000   { animation-delay: 4s; }
 .animate-fade-in-up     { animation: fade-in-up 0.4s ease both; }
 .animate-fade-in        { animation: fade-in 0.3s ease both; }
-
-/* ═══════════════════════════════════════════════════════════════════════════
-   THEME TOGGLE ICONS
-   Light / dark visibility controlled by class on <html>
-   ═══════════════════════════════════════════════════════════════════════════ */
-.theme-sun  { transition: opacity 0.3s ease, transform 0.3s ease; }
-.theme-moon { transition: opacity 0.3s ease, transform 0.3s ease; }
-
-/* Default (light mode) */
-:root .theme-sun,
-.light-mode .theme-sun  { opacity: 1; transform: scale(1); }
-:root .theme-moon,
-.light-mode .theme-moon { opacity: 0; transform: scale(0.6); }
-
-/* Dark mode */
-.dark .theme-sun        { opacity: 0; transform: scale(0.6); }
-.dark .theme-moon       { opacity: 1; transform: scale(1); }

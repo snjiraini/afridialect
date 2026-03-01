@@ -2,8 +2,8 @@
 
 **Project Start Date:** February 21, 2026  
 **Status:** In Progress  
-**Current Phase:** Phase 5 - Transcription Workflow  
-**Overall Progress:** 55%
+**Current Phase:** Phase 6 - Translation Workflow  
+**Overall Progress:** 65%
 
 ---
 
@@ -294,25 +294,27 @@
 
 ---
 
-### ⏳ **Phase 5: Transcription Workflow**
-**Status:** Not Started  
-**Target Completion:** TBD
+### ✅ **Phase 5: Transcription Workflow**
+**Status:** ✅ Completed (100%)  
+**Completion Date:** March 1, 2026
 
 #### Tasks:
-- [ ] Build state machine for audio lifecycle
-- [ ] Implement task claiming system
-- [ ] Create 24-hour lock mechanism with auto-unlock
-- [ ] Build queue management system
-- [ ] Implement one-task-per-item constraint enforcement
-- [ ] Create task assignment logic
-- [ ] Build notification system for task events
-- [ ] Create dashboard for each contributor role
+- [x] Build transcription queue (server component)
+- [x] Implement task claiming with 24-hour lock
+- [x] Create verbatim transcription editor with tag shortcuts
+- [x] Enforce one-task-per-item constraint
+- [x] Implement race-condition-safe claim API
+- [x] Create transcript submit API with pipeline advancement
+- [x] Auto-create transcript_qc task on submission
+- [x] Signed audio URL playback (private storage)
 
 #### Deliverables:
-- [ ] Working state machine
-- [ ] Task claiming and locking system
-- [ ] Queue management
-- [ ] Role-specific dashboards
+- [x] `/app/transcriber/page.tsx` — Queue page
+- [x] `/app/transcriber/[taskId]/page.tsx` — Task detail
+- [x] `/app/transcriber/[taskId]/components/TranscriptionForm.tsx` — Editor
+- [x] `POST /api/transcription/claim` — Claim API
+- [x] `POST /api/transcription/submit` — Submit API
+- [x] Build passes 0 errors
 
 ---
 
@@ -475,7 +477,7 @@
 - [x] **Milestone 2:** Database and auth working (Phases 2-3.1) ✅ Feb 23, 2026
 - [x] **Milestone 2.5:** Hedera account creation working (Phase 3.2) ✅ Feb 24, 2026
 - [x] **Milestone 3:** User profiles and admin complete (Phase 3.3) ✅ Feb 24, 2026
-- [ ] **Milestone 4:** Upload and workflow functional (Phases 4-5)
+- [x] **Milestone 4:** Upload and transcription workflow functional (Phases 4–5) ✅ Mar 1, 2026
 - [ ] **Milestone 5:** QC pipeline complete (Phase 6)
 - [ ] **Milestone 6:** NFT minting integration working (Phase 7)
 - [ ] **Milestone 7:** IPFS storage operational (Phase 8)

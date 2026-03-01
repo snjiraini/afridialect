@@ -192,6 +192,26 @@ export async function POST(request: NextRequest) {
       }
     })
 
+    // Create audio_qc task so reviewers can pick it up immediately
+    const { error: qcTaskError } = await supabase
+      .from('tasks')
+      .insert({
+        audio_clip_id: clipId,
+        task_type: 'audio_qc',
+        status: 'available',
+      })
+
+    if (qcTaskError) {
+      // Non-fatal: task can be created manually; don't fail the upload
+      console.error('[audio/upload] audio_qc task creation failed:', qcTaskError)
+    } else {
+      // Advance clip status so the state machine is consistent
+      await supabase
+        .from('audio_clips')
+        .update({ status: 'audio_qc', updated_at: new Date().toISOString() })
+        .eq('id', clipId)
+    }
+
     // TODO: Implement chunking logic if duration > MAX_DURATION_SECONDS
     // For Phase 4.1, we'll accept files as-is and add chunking in Phase 4.3
 
