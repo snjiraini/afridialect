@@ -11,35 +11,29 @@ import RoleAssignmentForm from './RoleAssignmentForm'
 export default async function AdminUserDetailPage({
   params,
 }: {
-  params: { id: string }
+  params: Promise<{ id: string }>
 }) {
   const supabase = await createClient()
-  
-  const {
-    data: { session },
-  } = await supabase.auth.getSession()
+  const { id } = await params
 
-  if (!session) {
-    redirect('/auth/login')
-  }
+  const { data: { user: authUser } } = await supabase.auth.getUser()
+  if (!authUser) redirect('/auth/login')
 
   // Check if user is admin
   const { data: adminRole } = await supabase
     .from('user_roles')
     .select('role')
-    .eq('user_id', session.user.id)
+    .eq('user_id', authUser.id)
     .eq('role', 'admin')
     .single()
 
-  if (!adminRole) {
-    redirect('/dashboard')
-  }
+  if (!adminRole) redirect('/dashboard')
 
   // Get user details
   const { data: user, error } = await supabase
     .from('profiles')
     .select('*')
-    .eq('id', params.id)
+    .eq('id', id)
     .single()
 
   if (error || !user) {
@@ -50,14 +44,14 @@ export default async function AdminUserDetailPage({
   const { data: userRoles } = await supabase
     .from('user_roles')
     .select('id, role, assigned_at')
-    .eq('user_id', params.id)
+    .eq('user_id', id)
     .order('assigned_at', { ascending: false })
 
   // Get recent audit logs for this user
   const { data: auditLogs } = await supabase
     .from('audit_logs')
     .select('*')
-    .eq('user_id', params.id)
+    .eq('user_id', id)
     .order('created_at', { ascending: false })
     .limit(10)
 
@@ -196,7 +190,7 @@ export default async function AdminUserDetailPage({
 
           {/* Assign/Remove Roles */}
           <RoleAssignmentForm
-            userId={params.id}
+            userId={id}
             currentRoles={currentRoles}
             availableRoles={availableRoles}
           />

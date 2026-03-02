@@ -187,6 +187,51 @@ export interface MintResponse {
 }
 
 // ==========================================
+// IPFS / Phase 8 Types
+// ==========================================
+
+export type IPFSPinNftType =
+  | 'audio'
+  | 'transcript'
+  | 'translation'
+  | 'metadata_audio'
+  | 'metadata_transcript'
+  | 'metadata_translation'
+
+export interface IPFSPinLog {
+  id: string
+  audioClipId: string
+  nftType: IPFSPinNftType
+  cid: string
+  pinSizeBytes: number | null
+  pinnedAt: string
+  lastVerifiedAt: string | null
+  verifiedPinned: boolean | null
+  unpinnedAt: string | null
+  createdAt: string
+}
+
+export interface IPFSVerifyResult {
+  nftType: string
+  cid: string
+  pinned: boolean
+  error?: string
+}
+
+export interface IPFSVerifyResponse {
+  success: boolean
+  clipId: string
+  allPinned: boolean
+  results: IPFSVerifyResult[]
+}
+
+export interface IPFSCleanupResponse {
+  success: boolean
+  clipId: string
+  removedPath: string
+}
+
+// ==========================================
 // Marketplace Types
 // ==========================================
 

@@ -26,14 +26,36 @@ interface MintResult {
   translationToken?: { tokenId: string; serialNumbers: number[] }
 }
 
-interface Props {
-  clips: Clip[]
+interface VerifyResult {
+  success?: boolean
+  allPinned?: boolean
+  results?: Array<{ nftType: string; cid: string; pinned: boolean; error?: string }>
+  error?: string
 }
 
-export default function MintQueueClient({ clips }: Props) {
+interface CleanupResult {
+  success?: boolean
+  removedPath?: string
+  error?: string
+}
+
+interface Props {
+  clips: Clip[]
+  mintedClipIds?: string[]
+}
+
+export default function MintQueueClient({ clips, mintedClipIds = [] }: Props) {
   const [minting, setMinting] = useState<string | null>(null)
   const [results, setResults] = useState<Record<string, MintResult>>({})
   const [mintedIds, setMintedIds] = useState<Set<string>>(new Set())
+
+  // Phase 8: verify / cleanup state
+  const [verifying, setVerifying] = useState<string | null>(null)
+  const [verifyResults, setVerifyResults] = useState<Record<string, VerifyResult>>({})
+  const [cleaning, setCleaning] = useState<string | null>(null)
+  const [cleanupResults, setCleanupResults] = useState<Record<string, CleanupResult>>({})
+  // Track which minted clips have been cleaned up in this session
+  const [cleanedIds, setCleanedIds] = useState<Set<string>>(new Set())
 
   async function handleMint(clipId: string) {
     setMinting(clipId)
@@ -63,6 +85,59 @@ export default function MintQueueClient({ clips }: Props) {
       }))
     } finally {
       setMinting(null)
+    }
+  }
+
+  async function handleVerify(clipId: string) {
+    setVerifying(clipId)
+    setVerifyResults((prev) => {
+      const next = { ...prev }
+      delete next[clipId]
+      return next
+    })
+    try {
+      const response = await fetch('/api/ipfs/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clipId }),
+      })
+      const data: VerifyResult = await response.json()
+      setVerifyResults((prev) => ({ ...prev, [clipId]: data }))
+    } catch (err) {
+      setVerifyResults((prev) => ({
+        ...prev,
+        [clipId]: { error: err instanceof Error ? err.message : 'Network error' },
+      }))
+    } finally {
+      setVerifying(null)
+    }
+  }
+
+  async function handleCleanup(clipId: string) {
+    setCleaning(clipId)
+    setCleanupResults((prev) => {
+      const next = { ...prev }
+      delete next[clipId]
+      return next
+    })
+    try {
+      const response = await fetch('/api/ipfs/cleanup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clipId }),
+      })
+      const data: CleanupResult = await response.json()
+      setCleanupResults((prev) => ({ ...prev, [clipId]: data }))
+      if (data.success) {
+        setCleanedIds((prev) => new Set([...prev, clipId]))
+      }
+    } catch (err) {
+      setCleanupResults((prev) => ({
+        ...prev,
+        [clipId]: { error: err instanceof Error ? err.message : 'Network error' },
+      }))
+    } finally {
+      setCleaning(null)
     }
   }
 
@@ -302,6 +377,94 @@ export default function MintQueueClient({ clips }: Props) {
                         {result.audioCid}
                       </a>
                     </p>
+                    {/* Phase 8: Verify & Cleanup actions shown after successful mint */}
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.preventDefault()
+                          e.stopPropagation()
+                          handleVerify(clip.id)
+                        }}
+                        disabled={verifying === clip.id}
+                        className="text-xs px-3 py-1 rounded-lg font-medium"
+                        style={{
+                          background: 'var(--af-primary-light)',
+                          color: 'var(--af-primary)',
+                          opacity: verifying === clip.id ? 0.6 : 1,
+                          cursor: verifying === clip.id ? 'not-allowed' : 'pointer',
+                        }}
+                        onMouseEnter={(e) => { if (verifying !== clip.id) e.currentTarget.style.transform = 'translateY(-1px)' }}
+                        onMouseLeave={(e) => { e.currentTarget.style.transform = '' }}
+                      >
+                        {verifying === clip.id ? '⟳ Verifying…' : '🔍 Verify IPFS Pins'}
+                      </button>
+                      {!cleanedIds.has(clip.id) && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.preventDefault()
+                            e.stopPropagation()
+                            handleCleanup(clip.id)
+                          }}
+                          disabled={cleaning === clip.id}
+                          className="text-xs px-3 py-1 rounded-lg font-medium"
+                          style={{
+                            background: '#fef2f2',
+                            color: '#991b1b',
+                            opacity: cleaning === clip.id ? 0.6 : 1,
+                            cursor: cleaning === clip.id ? 'not-allowed' : 'pointer',
+                          }}
+                          onMouseEnter={(e) => { if (cleaning !== clip.id) e.currentTarget.style.transform = 'translateY(-1px)' }}
+                          onMouseLeave={(e) => { e.currentTarget.style.transform = '' }}
+                        >
+                          {cleaning === clip.id ? '⟳ Cleaning…' : '🗑️ Cleanup Staging File'}
+                        </button>
+                      )}
+                      {cleanedIds.has(clip.id) && (
+                        <span className="text-xs px-3 py-1 rounded-lg font-medium" style={{ background: '#f0fdf4', color: '#166534' }}>
+                          ✅ Staging file removed
+                        </span>
+                      )}
+                    </div>
+                    {/* Verify result */}
+                    {verifyResults[clip.id] && (
+                      <div className="mt-2 text-xs">
+                        {verifyResults[clip.id].error ? (
+                          <p style={{ color: '#991b1b' }}>❌ Verify error: {verifyResults[clip.id].error}</p>
+                        ) : (
+                          <>
+                            <p className="font-semibold mb-1" style={{ color: verifyResults[clip.id].allPinned ? '#166534' : '#92400e' }}>
+                              {verifyResults[clip.id].allPinned ? '✅ All CIDs confirmed pinned' : '⚠️ Some CIDs are NOT pinned'}
+                            </p>
+                            {(verifyResults[clip.id].results ?? []).map((r) => (
+                              <p key={r.nftType}>
+                                {r.pinned ? '✅' : '❌'} {r.nftType}:{' '}
+                                <a
+                                  href={`https://ipfs.io/ipfs/${r.cid}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="underline font-mono"
+                                >
+                                  {r.cid.slice(0, 16)}…
+                                </a>
+                                {r.error && <span style={{ color: '#991b1b' }}> ({r.error})</span>}
+                              </p>
+                            ))}
+                          </>
+                        )}
+                      </div>
+                    )}
+                    {/* Cleanup result */}
+                    {cleanupResults[clip.id] && (
+                      <div className="mt-2 text-xs">
+                        {cleanupResults[clip.id].error ? (
+                          <p style={{ color: '#991b1b' }}>❌ Cleanup error: {cleanupResults[clip.id].error}</p>
+                        ) : (
+                          <p style={{ color: '#166534' }}>✅ Removed: {cleanupResults[clip.id].removedPath}</p>
+                        )}
+                      </div>
+                    )}
                   </>
                 )}
                 {result.warning && (

@@ -124,6 +124,65 @@ export async function pinFileFromUrl(
 }
 
 /**
+ * Verify that a CID is currently pinned on Pinata.
+ * Returns true if pinned, false if not found.
+ */
+export async function verifyPin(cid: string): Promise<boolean> {
+  const jwt = getPinataJwt()
+
+  const response = await fetch(
+    `https://api.pinata.cloud/pinning/pinJobs?ipfs_pin_hash=${encodeURIComponent(cid)}&status=pinned&limit=1`,
+    {
+      headers: { Authorization: `Bearer ${jwt}` },
+    }
+  )
+
+  if (!response.ok) {
+    const text = await response.text()
+    throw new Error(`Pinata pin verification failed (${response.status}): ${text}`)
+  }
+
+  const data = await response.json()
+  // pinJobs returns { count, rows }
+  if (typeof data.count === 'number') return data.count > 0
+
+  // Fallback: check pinList endpoint
+  const listResponse = await fetch(
+    `https://api.pinata.cloud/data/pinList?hashContains=${encodeURIComponent(cid)}&status=pinned&pageLimit=1`,
+    {
+      headers: { Authorization: `Bearer ${jwt}` },
+    }
+  )
+
+  if (!listResponse.ok) return false
+
+  const listData = await listResponse.json()
+  return (listData.count ?? 0) > 0
+}
+
+/**
+ * Unpin a CID from Pinata (remove from IPFS pinset).
+ * Use only after confirming the NFT has been minted on-chain.
+ * Note: The content remains on IPFS until all other nodes unpin it.
+ */
+export async function unpinFromIPFS(cid: string): Promise<void> {
+  const jwt = getPinataJwt()
+
+  const response = await fetch(
+    `https://api.pinata.cloud/pinning/unpin/${encodeURIComponent(cid)}`,
+    {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${jwt}` },
+    }
+  )
+
+  if (!response.ok) {
+    const text = await response.text()
+    throw new Error(`Pinata unpin failed (${response.status}): ${text}`)
+  }
+}
+
+/**
  * Build a standard NFT metadata object for an Afridialect clip component.
  */
 export function buildNftMetadata(params: {
