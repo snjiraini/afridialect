@@ -47,6 +47,7 @@ export default async function AdminPage() {
 
   const quickActions = [
     { label: 'Manage Users',    desc: 'View and edit user profiles, assign roles', href: '/admin/users',      icon: '👤' },
+    { label: 'NFT Minting',     desc: 'Mint NFTs for translation-QC approved clips', href: '/admin/mint',    icon: '⬡' },
     { label: 'Audit Logs',      desc: 'View system activity and security events',  href: '/admin/audit-logs', icon: '📋' },
     { label: 'System Settings', desc: 'Configure dialects, pricing, and more',     href: '/admin/settings',   icon: '⚙️' },
   ]
@@ -92,7 +93,7 @@ export default async function AdminPage() {
         {/* Quick actions */}
         <div className="af-card p-6">
           <h2 className="text-lg font-semibold mb-4" style={{ color: 'var(--af-txt)' }}>Quick Actions</h2>
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             {quickActions.map(({ label, desc, href, icon }) => (
               <Link key={label} href={href} className="af-card af-card-hover p-5 block">
                 <div className="text-2xl mb-2">{icon}</div>

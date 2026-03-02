@@ -103,7 +103,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   const signOut = async () => {
-    await supabase.auth.signOut()
+    // scope: 'local' clears the browser session without a network call to
+    // /auth/v1/logout (which can fail with NetworkError due to CORS or
+    // connectivity issues). The server-side refresh token expires on its own.
+    await supabase.auth.signOut({ scope: 'local' })
+    // Hard-navigate to login so all React state is wiped and the middleware
+    // sees a fully unauthenticated request — prevents stale-state loops.
+    window.location.href = '/auth/login'
   }
 
   const resetPassword = async (email: string) => {

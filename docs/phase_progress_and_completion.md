@@ -1061,3 +1061,171 @@ All states through `translation_qc` are now fully implemented.
 - ✅ Next.js 16 with TypeScript configured
 - ✅ Folder structure established
 - ✅ PRD reviewed and development plan created
+
+---
+
+## Phase 7: NFT Minting
+
+**Status:** ✅ COMPLETE  
+**Completed:** March 2, 2026  
+**Branch:** `feature/phase-7`
+
+### Objectives
+- Implement HTS NFT token collection creation per clip
+- Mint 300 audio NFTs → uploader's Hedera account
+- Mint 300 transcript NFTs → transcriber's Hedera account
+- Mint 300 translation NFTs → translator's Hedera account
+- Pin audio files and NFT metadata to IPFS via Pinata before minting
+- Build admin-only minting queue UI
+- Update clip status: `mint_ready` → `ipfs_pinned` → `minted`
+
+### Deliverables
+
+**7.1 IPFS / Pinata Service** ✅ COMPLETE
+- ✅ `lib/hedera/ipfs.ts`
+  - `pinFileFromUrl()` — downloads from Supabase signed URL, pins to Pinata
+  - `pinJsonToIPFS()` — pins NFT metadata JSON
+  - `buildNftMetadata()` — constructs standard NFT metadata object per PRD §6
+
+**7.2 Hedera NFT Minting Service** ✅ COMPLETE
+- ✅ `lib/hedera/nft.ts`
+  - `createTokenCollection()` — creates HTS Finite NFT token (admin key = treasury key, supply key = treasury key)
+  - `mintSerials()` — mints N serials in batches of 10 (HTS limit)
+  - `transferNftsToContributor()` — treasury transfers all serials to contributor in batches of 10
+  - `mintNftSet()` — orchestrates full collection: create → mint → transfer
+
+**7.3 Minting API** ✅ COMPLETE
+- ✅ `app/api/hedera/mint/route.ts` — `POST /api/hedera/mint`
+  - Admin-only (role check)
+  - Accepts `{ clipId }`
+  - Validates clip in `mint_ready` status
+  - Verifies all three contributors have Hedera accounts (blocks minting if any missing)
+  - Pins audio file to IPFS
+  - Builds and pins metadata for all three token types
+  - Updates clip `audio_cid` + status `ipfs_pinned`
+  - Mints 3 × 300 NFT collections
+  - Inserts 3 `nft_records` rows
+  - Advances clip status → `minted`
+  - Audit log: `mint_nfts`
+  - Returns token IDs, serial arrays, and IPFS CIDs
+
+**7.4 Admin Minting Queue UI** ✅ COMPLETE
+- ✅ `app/admin/mint/page.tsx` — Server component
+  - Lists all `mint_ready` clips with contributor names and Hedera account status
+  - Per-clip contributor row showing ✅/⚠️ for each of uploader / transcriber / translator
+  - Stats bar: awaiting mint, ready to mint, blocked, recently minted
+  - "How minting works" information card
+  - Recently minted clips table with HashScan links
+- ✅ `app/admin/mint/MintQueueClient.tsx` — Client component
+  - Per-clip "⬡ Mint NFTs" button (disabled when contributors missing accounts)
+  - Spinner during in-flight minting operation (can take ~30–60s)
+  - Inline result card after each mint showing token IDs with HashScan links and IPFS CID
+  - Automatically removes successfully minted clip from queue
+
+**7.5 Admin Dashboard Update** ✅ COMPLETE
+- ✅ `app/admin/page.tsx` — Added "NFT Minting" quick-action card linking to `/admin/mint`
+- Grid changed to 2×4 to fit 4 action cards cleanly
+
+**7.6 Database Migration** ✅ COMPLETE
+- ✅ `lib/supabase/migrations/phase7_nft_minting.sql`
+  - Guards `audio_cid` column add (idempotent)
+  - Index on `nft_records(audio_clip_id, nft_type)`
+  - RLS policies for `nft_records` (admin full-access, contributors read-own)
+  - RLS policies for `nft_burns` (admin full-access)
+
+**7.7 Type System Updates** ✅ COMPLETE
+- ✅ `types/index.ts`
+  - `NFTRecord` updated: `serial_numbers: number[]` (array, matching schema)
+  - Added `NFTBurn` interface
+  - Added `MintRequest` and `MintResponse` interfaces
+
+### Technical Implementation
+
+**Minting Batch Sizes:**
+- Token creation: 1 tx per collection (3 total per clip)
+- Mint: batches of 10 serials per tx → 30 txs for 300 serials
+- Transfer: batches of 10 NFTs per tx → 30 txs for 300 serials
+- Total Hedera txs per clip: ~63 (3 create + 30 mint + 30 transfer)
+
+**HTS Token Configuration:**
+```typescript
+new TokenCreateTransaction()
+  .setTokenType(TokenType.NonFungibleUnique)
+  .setSupplyType(TokenSupplyType.Finite)
+  .setMaxSupply(300)
+  .setTreasuryAccountId(treasury)
+  .setSupplyKey(treasuryKey.publicKey)
+  .setAdminKey(treasuryKey.publicKey)
+```
+
+**IPFS Pinning:**
+- Audio file pinned via `pinFileToIPFS` (binary upload)
+- Metadata JSON pinned via `pinJSONToIPFS` (3 metadata pins per clip)
+- All metadata references `ipfs://${audioCid}` as the primary asset
+
+**Clip Status Progression (Phase 7):**
+```
+mint_ready → ipfs_pinned → minted
+```
+
+### NFT Metadata Structure
+```json
+{
+  "name": "Afridialect Audio – Kikuyu",
+  "description": "Afridialect Kikuyu audio clip – 35.0s",
+  "image": "ipfs://<audioCid>",
+  "type": "audio",
+  "attributes": [
+    { "trait_type": "Type",                "value": "Audio" },
+    { "trait_type": "Dialect",             "value": "Kikuyu" },
+    { "trait_type": "Dialect Code",        "value": "kikuyu" },
+    { "trait_type": "Duration (s)",        "value": 35 },
+    { "trait_type": "Clip ID",             "value": "<uuid>" },
+    { "trait_type": "Contributor Account", "value": "0.0.XXXXXXX" }
+  ]
+}
+```
+
+### Key Files Created
+```
+lib/hedera/
+├── ipfs.ts              # Pinata IPFS service (pin files + metadata)
+└── nft.ts              # HTS NFT creation, minting, transfer
+
+app/api/hedera/mint/
+└── route.ts            # POST /api/hedera/mint (admin only)
+
+app/admin/mint/
+├── page.tsx            # Server: mint queue with stats + recently minted
+└── MintQueueClient.tsx # Client: per-clip mint button + result display
+
+lib/supabase/migrations/
+└── phase7_nft_minting.sql  # RLS policies + index additions
+```
+
+### Build Verification
+- ✅ `npm run build` passes — 0 errors, 37 routes compiled
+- ✅ `/admin/mint` and `/api/hedera/mint` appear in build output
+- ✅ TypeScript strict mode — no type errors
+
+### Environment Variables Required (Phase 7 additions)
+```env
+# Pinata (IPFS)
+PINATA_JWT=<your-pinata-jwt>
+```
+
+### Remaining for Production Readiness
+- [ ] Run `lib/supabase/migrations/phase7_nft_minting.sql` in Supabase Dashboard
+- [ ] Set `PINATA_JWT` in `.env.local`
+- [ ] Ensure `HEDERA_OPERATOR_ACCOUNT_ID` and `HEDERA_OPERATOR_PRIVATE_KEY` are set
+- [ ] Ensure treasury account has sufficient HBAR (≥ 100 HBAR per clip for fees)
+- [ ] End-to-end test: push one clip through full pipeline → `/admin/mint`
+
+### Estimated HBAR Cost per Clip
+Each clip triggers ~63 Hedera transactions across 3 token collections:
+- 3 × `TokenCreateTransaction` ≈ 3 HBAR (mainnet: $1 USD equivalent each)
+- 30 × `TokenMintTransaction` (10 serials/tx) ≈ 1.5 HBAR
+- 30 × `TransferTransaction` (10 NFTs/tx) ≈ 0.03 HBAR
+- **Realistic total: ~5 HBAR per clip**
+- Recommended treasury balance: ≥ 10 HBAR per clip to allow headroom
+

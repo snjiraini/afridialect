@@ -143,11 +143,47 @@ export interface NFTRecord {
   audioClipId: string
   nftType: NFTType
   tokenId: string
-  serialNumber: number
+  serialNumbers: number[]
   contributorId: string
   ipfsCid: string
+  metadata: Record<string, any>
   mintedAt: string
-  burnedAt: string | null
+}
+
+export interface NFTBurn {
+  id: string
+  nftRecordId: string
+  serialNumber: number
+  purchaseId: string
+  burnedAt: string
+  transactionId: string | null
+}
+
+export interface MintRequest {
+  clipId: string
+}
+
+export interface MintResponse {
+  success: boolean
+  clipId?: string
+  audioCid?: string
+  audioToken?: {
+    tokenId: string
+    serialNumbers: number[]
+    metadataCid: string
+  }
+  transcriptToken?: {
+    tokenId: string
+    serialNumbers: number[]
+    metadataCid: string
+  }
+  translationToken?: {
+    tokenId: string
+    serialNumbers: number[]
+    metadataCid: string
+  }
+  warning?: string
+  error?: string
 }
 
 // ==========================================

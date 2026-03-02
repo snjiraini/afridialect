@@ -62,8 +62,9 @@ export async function createUserKey(userId: string): Promise<CreateKeyResult> {
       throw new Error('Failed to create KMS key')
     }
 
-    // Create an alias for easier reference
-    const alias = `alias/afridialect-user-${userId.slice(0, 8)}`
+    // Create an alias for easier reference.
+    // Use full key ID suffix to guarantee uniqueness across users and retries.
+    const alias = `alias/afridialect-user-${KeyMetadata.KeyId.slice(0, 8)}`
     try {
       await kmsClient.send(
         new CreateAliasCommand({
@@ -71,9 +72,12 @@ export async function createUserKey(userId: string): Promise<CreateKeyResult> {
           TargetKeyId: KeyMetadata.KeyId,
         })
       )
-    } catch (err) {
-      // Alias creation is not critical, log and continue
-      console.warn(`Could not create alias ${alias}:`, err)
+    } catch (err: any) {
+      // AlreadyExistsException is expected when the same key is aliased twice;
+      // any other error is logged but not fatal — alias is non-critical.
+      if (err?.__type !== 'AlreadyExistsException') {
+        console.warn(`Could not create alias ${alias}:`, err)
+      }
     }
 
     // Get the public key

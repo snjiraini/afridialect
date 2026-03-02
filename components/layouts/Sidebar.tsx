@@ -187,8 +187,9 @@ export default function Sidebar() {
       if (signingOut) return
       setSigningOut(true)
       try {
+        // signOut() performs a hard page navigation to /auth/login internally,
+        // so no router call is needed here.
         await signOut()
-        router.push('/')
       } catch (err) {
         console.error('[Sidebar] sign-out error:', err)
         setSigningOut(false)

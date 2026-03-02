@@ -156,6 +156,7 @@ CREATE TABLE public.translations (
   content TEXT NOT NULL,
   
   -- Metadata
+  speaker_turns INTEGER,
   metadata JSONB DEFAULT '{}',
   
   -- Storage
