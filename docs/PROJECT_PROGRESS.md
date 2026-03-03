@@ -177,14 +177,7 @@
 - IPFS integration pending Pinata account setup
 
 #### Next Steps:
-1. Apply storage RLS policies manually
-2. Test upload workflow with real audio files
-3. Implement audio duration detection
-4. Add automatic chunking for long files
-5. Integrate IPFS/Pinata
-6. Generate waveforms (optional enhancement)
 
----
 
 #### Sub-Phase 3.2: Hedera Integration ✅ Complete
 **Completion Date:** February 24, 2026
