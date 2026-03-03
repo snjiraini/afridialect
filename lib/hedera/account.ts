@@ -69,10 +69,14 @@ export async function createHederaAccount(userId: string): Promise<CreateAccount
     console.log('Created ThresholdKey (2-of-2)')
 
     // Step 5: Create Hedera account with ThresholdKey
-    console.log('Creating Hedera account...')
+    // The 1 HBAR initial balance is transferred from the operator account to the
+    // new account as part of AccountCreateTransaction.  This single step both
+    // creates *and* activates the account on the ledger - no separate activation
+    // transfer is needed for newly created accounts.
+    console.log('Creating Hedera account (operator funds 1 HBAR for activation)...')
     const accountCreateTx = new AccountCreateTransaction()
       .setKey(thresholdKey)
-      .setInitialBalance(new Hbar(1)) // Initial balance: 1 HBAR
+      .setInitialBalance(new Hbar(1)) // 1 HBAR — activates account on ledger immediately
       .setAccountMemo(`Afridialect user: ${userId}`)
       .setMaxAutomaticTokenAssociations(10) // Allow automatic token associations
 
@@ -178,6 +182,84 @@ export async function fundAccount(
   } catch (error) {
     console.error('Error funding account:', error)
     throw new Error(`Failed to fund account: ${error instanceof Error ? error.message : 'Unknown error'}`)
+  } finally {
+    await closeClient(client)
+  }
+}
+
+/**
+ * Check whether a Hedera account ID exists on the ledger.
+ * Returns true if the account is active (found on testnet/mainnet),
+ * false if it is missing or has been deleted.
+ */
+export async function isAccountActivated(accountId: string): Promise<boolean> {
+  const client = getHederaClient()
+
+  try {
+    const info = await new AccountInfoQuery()
+      .setAccountId(AccountId.fromString(accountId))
+      .execute(client)
+
+    return !info.isDeleted
+  } catch (error) {
+    // INVALID_ACCOUNT_ID or ACCOUNT_DELETED both mean the account is not active
+    const msg = error instanceof Error ? error.message : String(error)
+    if (
+      msg.includes('INVALID_ACCOUNT_ID') ||
+      msg.includes('ACCOUNT_DELETED') ||
+      msg.includes('account does not exist') ||
+      msg.includes('5')  // gRPC status 5 = NOT_FOUND
+    ) {
+      return false
+    }
+    // Re-throw unexpected errors
+    throw error
+  } finally {
+    await closeClient(client)
+  }
+}
+
+/**
+ * Activate a Hedera account that is stored in the database but not yet
+ * present on the ledger by sending the minimum required HBAR from the
+ * operator account.
+ *
+ * On Hedera testnet (and mainnet) an account record is only created on
+ * the ledger when it receives its first HBAR transfer.  Accounts that
+ * were created via AccountCreateTransaction already receive their initial
+ * balance at creation time, so this function is primarily used to
+ * activate accounts whose ledger record may have expired or that were
+ * registered in the database without a successful on-chain transaction.
+ *
+ * @param accountId - The Hedera account ID to activate (e.g. "0.0.12345")
+ * @param activationHbar - Amount of HBAR to send (default: 1 HBAR)
+ * @returns The Hedera transaction ID of the activation transfer
+ */
+export async function activateHederaAccount(
+  accountId: string,
+  activationHbar = 1
+): Promise<string> {
+  const client = getHederaClient()
+
+  try {
+    console.log(`Activating Hedera account ${accountId} with ${activationHbar} HBAR...`)
+
+    const transferTx = new TransferTransaction()
+      .addHbarTransfer(client.operatorAccountId!, new Hbar(-activationHbar))
+      .addHbarTransfer(AccountId.fromString(accountId), new Hbar(activationHbar))
+      .setTransactionMemo(`Afridialect account activation: ${accountId}`)
+
+    const transferSubmit = await transferTx.execute(client)
+    await transferSubmit.getReceipt(client) // Confirms SUCCESS status
+
+    const txId = transferSubmit.transactionId.toString()
+    console.log(`✅ Account ${accountId} activated. Transaction: ${txId}`)
+    return txId
+  } catch (error) {
+    console.error(`Error activating Hedera account ${accountId}:`, error)
+    throw new Error(
+      `Failed to activate Hedera account ${accountId}: ${error instanceof Error ? error.message : 'Unknown error'}`
+    )
   } finally {
     await closeClient(client)
   }
