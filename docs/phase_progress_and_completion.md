@@ -1229,3 +1229,101 @@ Each clip triggers ~63 Hedera transactions across 3 token collections:
 - **Realistic total: ~5 HBAR per clip**
 - Recommended treasury balance: ≥ 10 HBAR per clip to allow headroom
 
+---
+
+## Phase 10: Admin Panel & Analytics
+
+**Status:** ✅ COMPLETE  
+**Started:** March 3, 2026  
+**Completed:** March 3, 2026  
+**Branch:** `feature/phase-10`
+
+### Objectives
+- Build comprehensive analytics dashboard for admin
+- Add interactive dialect management (add/enable/disable)
+- Implement HBAR/USD pricing configuration with live preview
+- Create admin task override capability (unlock stuck tasks)
+- Persist platform settings in `system_config` DB table
+
+### Deliverables
+
+**10.1 Analytics Dashboard** ✅ COMPLETE
+- ✅ `app/admin/analytics/page.tsx` — server component, fully aggregated server-side
+  - **Upload metrics:** total uploads, avg duration, minted/sellable counts, 14-day daily activity table
+  - **Pipeline breakdown:** bar chart per status (ordered by pipeline stage), colour-coded by type
+  - **Uploads by dialect:** bar chart with counts (joins `dialects` table via `dialect_id`)
+  - **QC performance:** approval rate per stage (audio_qc, transcript_qc, translation_qc) with colour-coded badges
+  - **Top rejection reasons:** formatted table, top 8 across all review types
+  - **Task throughput:** submitted vs pending per task type
+  - **Purchase metrics:** total/completed purchases, revenue in USD + HBAR, 14-day activity table
+  - **Payout summary:** total HBAR paid out, breakdown by contributor type
+
+**10.2 Analytics API** ✅ COMPLETE
+- ✅ `app/api/admin/analytics/route.ts` — `GET /api/admin/analytics`
+  - Admin role required
+  - Returns: uploads, qc, tasks, purchases, payouts sections
+  - Joins `dialects` via `dialect_id` for dialect name resolution
+
+**10.3 Dialect Management** ✅ COMPLETE
+- ✅ `app/api/admin/dialects/route.ts`
+  - `POST` — add new dialect (name + code validation, unique constraint guard)
+  - `PATCH` — toggle enabled/disabled
+- ✅ `app/admin/components/DialectManagerClient.tsx` — interactive table with inline add form and toggle buttons
+
+**10.4 Pricing Configuration** ✅ COMPLETE
+- ✅ `app/api/admin/pricing/route.ts`
+  - `GET` — fetch system_config rows
+  - `POST` — upsert `hbar_price_usd`
+- ✅ `app/admin/components/PricingConfigClient.tsx` — rate editor with live HBAR-per-sample preview ($5.00 USD ÷ rate)
+
+**10.5 Admin Task Override** ✅ COMPLETE
+- ✅ `app/api/admin/tasks/unlock/route.ts` — `POST /api/admin/tasks/unlock`
+  - Resets task: `claimed → available`, clears claim fields
+  - Reverts clip to matching "ready" status where applicable
+  - Audit log: `admin_unlock_task`
+- ✅ `app/admin/components/TaskUnlockClient.tsx` — claimed task table with per-row unlock, expired tasks highlighted
+
+**10.6 Settings Page Enhancement** ✅ COMPLETE
+- ✅ `app/admin/settings/page.tsx` extended with pricing, dialect management, and task override sections
+- Static read-only dialect table replaced with interactive `DialectManagerClient`
+- Quick links updated to include `/admin/analytics`
+
+**10.7 Admin Dashboard Enhancement** ✅ COMPLETE
+- ✅ `app/admin/page.tsx` — added Audio Clips + Purchases stat cards; added Analytics quick action card
+
+**10.8 Database Migration** ✅ COMPLETE
+- ✅ `lib/supabase/migrations/phase10_analytics.sql`
+  - Creates `system_config` table with RLS (admin-only)
+  - Seeds default `hbar_price_usd = 0.08`
+  - Performance indexes on `audio_clips`, `qc_reviews`, `dataset_purchases`, `payouts`, `tasks`
+  - All `IF NOT EXISTS` — safe to re-run
+
+### Schema Corrections Made During Phase 10
+
+| Wrong reference | Correct schema name |
+|---|---|
+| `audio_clips.dialect` | `audio_clips.dialect_id` (UUID FK) |
+| `purchases` table | `dataset_purchases` table |
+| `payouts.contributor_type` | `payouts.payout_type` |
+| `payouts.status` | `payouts.transaction_status` |
+
+### Key Files Created
+```
+app/admin/analytics/page.tsx
+app/admin/components/DialectManagerClient.tsx
+app/admin/components/PricingConfigClient.tsx
+app/admin/components/TaskUnlockClient.tsx
+app/api/admin/analytics/route.ts
+app/api/admin/dialects/route.ts
+app/api/admin/pricing/route.ts
+app/api/admin/tasks/unlock/route.ts
+lib/supabase/migrations/phase10_analytics.sql
+```
+
+### Build Verification
+- ✅ `npm run build` — 0 errors, 52 routes compiled (March 3, 2026)
+- ✅ TypeScript strict mode — no type errors
+- ✅ No breaking changes to existing pages or APIs
+
+### SQL to Run in Supabase Dashboard
+Run `lib/supabase/migrations/phase10_analytics.sql` — creates `system_config` table, RLS policy, and analytics indexes. All statements are idempotent.

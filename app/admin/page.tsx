@@ -23,6 +23,9 @@ export default async function AdminPage() {
   const { count: totalUsers }       = await supabase.from('profiles').select('*', { count: 'exact', head: true })
   const { count: usersWithHedera }  = await supabase.from('profiles').select('*', { count: 'exact', head: true }).not('hedera_account_id', 'is', null)
   const { count: verifiedUsers }    = await supabase.from('profiles').select('*', { count: 'exact', head: true }).not('email_verified', 'is', null)
+  const { count: totalClips }       = await supabase.from('audio_clips').select('*', { count: 'exact', head: true })
+  const { count: mintedClips }      = await supabase.from('audio_clips').select('*', { count: 'exact', head: true }).eq('status', 'minted')
+  const { count: totalPurchases }   = await supabase.from('dataset_purchases').select('*', { count: 'exact', head: true })
 
   const { data: recentUsers } = await supabase
     .from('profiles')
@@ -40,16 +43,19 @@ export default async function AdminPage() {
   const verifiedPct = totalUsers ? Math.round(((verifiedUsers || 0) / totalUsers) * 100) : 0
 
   const statCards = [
-    { label: 'Total Users',     value: totalUsers || 0,     sub: 'registered accounts',    icon: '👥' },
-    { label: 'Hedera Accounts', value: usersWithHedera || 0, sub: `${hederaPct}% of users`, icon: '⛓️' },
-    { label: 'Verified Emails', value: verifiedUsers || 0,  sub: `${verifiedPct}% verified`, icon: '✅' },
+    { label: 'Total Users',     value: totalUsers || 0,     sub: 'registered accounts',      icon: '👥' },
+    { label: 'Hedera Accounts', value: usersWithHedera || 0, sub: `${hederaPct}% of users`,  icon: '⛓️' },
+    { label: 'Audio Clips',     value: totalClips || 0,     sub: `${mintedClips ?? 0} minted`, icon: '🎙️' },
+    { label: 'Purchases',       value: totalPurchases || 0, sub: 'dataset purchases',         icon: '💰' },
+    { label: 'Verified Emails', value: verifiedUsers || 0,  sub: `${verifiedPct}% verified`,  icon: '✅' },
   ]
 
   const quickActions = [
     { label: 'Manage Users',    desc: 'View and edit user profiles, assign roles', href: '/admin/users',      icon: '👤' },
     { label: 'NFT Minting',     desc: 'Mint NFTs for translation-QC approved clips', href: '/admin/mint',    icon: '⬡' },
+    { label: 'Analytics',       desc: 'Upload metrics, QC rates, revenue, payouts',  href: '/admin/analytics', icon: '📊' },
     { label: 'Audit Logs',      desc: 'View system activity and security events',  href: '/admin/audit-logs', icon: '📋' },
-    { label: 'System Settings', desc: 'Configure dialects, pricing, and more',     href: '/admin/settings',   icon: '⚙️' },
+    { label: 'System Settings', desc: 'Configure dialects, pricing, and overrides', href: '/admin/settings',  icon: '⚙️' },
   ]
 
   return (
@@ -58,7 +64,7 @@ export default async function AdminPage() {
       <div className="container-modern py-8 space-y-6">
 
         {/* Stat cards */}
-        <div className="grid grid-cols-3 gap-5">
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-5">
           {statCards.map(({ label, value, sub, icon }) => (
             <div key={label} className="af-card p-6">
               <div className="flex items-start justify-between">
@@ -93,7 +99,7 @@ export default async function AdminPage() {
         {/* Quick actions */}
         <div className="af-card p-6">
           <h2 className="text-lg font-semibold mb-4" style={{ color: 'var(--af-txt)' }}>Quick Actions</h2>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
             {quickActions.map(({ label, desc, href, icon }) => (
               <Link key={label} href={href} className="af-card af-card-hover p-5 block">
                 <div className="text-2xl mb-2">{icon}</div>

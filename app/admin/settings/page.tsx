@@ -1,6 +1,6 @@
 /**
  * Admin — System Settings
- * View and manage dialect configuration and platform settings.
+ * View and manage dialect configuration, pricing, and platform settings.
  */
 
 import { createClient } from '@/lib/supabase/server'
@@ -8,6 +8,9 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import Topbar from '@/components/layouts/Topbar'
+import DialectManagerClient from '../components/DialectManagerClient'
+import PricingConfigClient from '../components/PricingConfigClient'
+import TaskUnlockClient from '../components/TaskUnlockClient'
 
 export default async function AdminSettingsPage() {
   const supabase = await createClient()
@@ -47,6 +50,40 @@ export default async function AdminSettingsPage() {
     .select('id, name, code, enabled')
     .order('name', { ascending: true })
 
+  // Fetch HBAR price from system_config
+  const { data: configRows } = await admin
+    .from('system_config')
+    .select('key, value')
+  const hbarPriceRow = (configRows ?? []).find((r) => r.key === 'hbar_price_usd')
+  const hbarPriceUSD = hbarPriceRow?.value ?? '0.08'
+
+  // Fetch claimed tasks for admin override panel
+  const { data: rawClaimedTasks } = await admin
+    .from('tasks')
+    .select('id, task_type, status, claimed_by, claimed_at, expires_at, audio_clip_id')
+    .eq('status', 'claimed')
+    .order('claimed_at', { ascending: true })
+    .limit(100)
+
+  // Resolve claimer names
+  const claimerIds = [...new Set((rawClaimedTasks ?? []).map((t) => t.claimed_by).filter(Boolean))]
+  const { data: claimerProfiles } = claimerIds.length
+    ? await admin
+        .from('profiles')
+        .select('id, email, full_name')
+        .in('id', claimerIds)
+    : { data: [] }
+
+  const claimerMap: Record<string, string> = {}
+  for (const p of claimerProfiles ?? []) {
+    claimerMap[p.id] = p.full_name ?? p.email ?? p.id
+  }
+
+  const claimedTasks = (rawClaimedTasks ?? []).map((t) => ({
+    ...t,
+    claimerName: t.claimed_by ? (claimerMap[t.claimed_by] ?? t.claimed_by) : '—',
+  }))
+
   // Platform summary counts
   const { count: totalClips } = await admin
     .from('audio_clips')
@@ -71,7 +108,7 @@ export default async function AdminSettingsPage() {
 
   return (
     <>
-      <Topbar title="System Settings" subtitle="Platform configuration and dialect management" />
+      <Topbar title="System Settings" subtitle="Platform configuration, dialect management, and admin overrides" />
       <div className="container-modern py-8 space-y-6">
 
         {/* Back link */}
@@ -103,6 +140,33 @@ export default async function AdminSettingsPage() {
           ))}
         </div>
 
+        {/* Pricing configuration */}
+        <div className="af-card p-6">
+          <h2 className="font-semibold mb-4 text-sm" style={{ color: 'var(--af-txt)' }}>
+            💱 Pricing Configuration
+          </h2>
+          <PricingConfigClient initialRate={hbarPriceUSD} />
+        </div>
+
+        {/* Dialect management (interactive) */}
+        <div className="af-card p-6">
+          <h2 className="font-semibold mb-4 text-sm" style={{ color: 'var(--af-txt)' }}>
+            🗣️ Dialect Management ({dialects?.length ?? 0} configured)
+          </h2>
+          <DialectManagerClient initialDialects={dialects ?? []} />
+        </div>
+
+        {/* Admin task overrides */}
+        <div className="af-card p-6">
+          <h2 className="font-semibold mb-1 text-sm" style={{ color: 'var(--af-txt)' }}>
+            � Task Override — Unlock Claimed Tasks
+          </h2>
+          <p className="text-xs mb-4" style={{ color: 'var(--af-muted)' }}>
+            Unlock tasks that are stuck in &quot;claimed&quot; state. This returns them to the queue as available.
+          </p>
+          <TaskUnlockClient initialTasks={claimedTasks} />
+        </div>
+
         {/* Environment / configuration */}
         <div className="af-card p-6">
           <h2 className="font-semibold mb-4 text-sm" style={{ color: 'var(--af-txt)' }}>
@@ -124,70 +188,6 @@ export default async function AdminSettingsPage() {
           </p>
         </div>
 
-        {/* Dialect management */}
-        <div className="af-card p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="font-semibold text-sm" style={{ color: 'var(--af-txt)' }}>
-              🗣️ Supported Dialects ({dialects?.length ?? 0})
-            </h2>
-          </div>
-
-          {!dialects || dialects.length === 0 ? (
-            <p className="text-sm" style={{ color: 'var(--af-muted)' }}>
-              No dialects configured. Run the seed SQL to add dialects.
-            </p>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr style={{ borderBottom: '1px solid var(--af-line)' }}>
-                    {['Name', 'Code', 'Status'].map((h) => (
-                      <th
-                        key={h}
-                        className="text-left pb-3 pr-6 text-xs font-semibold"
-                        style={{ color: 'var(--af-muted)' }}
-                      >
-                        {h}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {dialects.map((d) => (
-                    <tr key={d.id} style={{ borderBottom: '1px solid var(--af-line)' }}>
-                      <td className="py-3 pr-6 font-medium" style={{ color: 'var(--af-txt)' }}>
-                        {d.name}
-                      </td>
-                      <td className="py-3 pr-6 font-mono text-xs" style={{ color: 'var(--af-muted)' }}>
-                        {d.code}
-                      </td>
-                      <td className="py-3">
-                        <span
-                          className="text-xs font-semibold px-2 py-0.5 rounded-full"
-                          style={{
-                            background: d.enabled ? 'var(--af-primary-light)' : 'var(--af-line)',
-                            color: d.enabled ? 'var(--af-primary)' : 'var(--af-muted)',
-                          }}
-                        >
-                          {d.enabled ? 'Enabled' : 'Disabled'}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-
-          <p
-            className="text-xs mt-4 p-3 rounded-xl"
-            style={{ background: 'var(--af-search-bg)', color: 'var(--af-muted)' }}
-          >
-            ℹ️ To add or disable dialects, run SQL directly in the Supabase Dashboard.
-            Full dialect management UI is planned for Phase 10.
-          </p>
-        </div>
-
         {/* Quick links */}
         <div className="af-card p-6">
           <h2 className="font-semibold mb-4 text-sm" style={{ color: 'var(--af-txt)' }}>
@@ -198,13 +198,11 @@ export default async function AdminSettingsPage() {
               { label: 'Manage Users',  href: '/admin/users',      icon: '👤' },
               { label: 'NFT Minting',   href: '/admin/mint',       icon: '⬡' },
               { label: 'Audit Logs',    href: '/admin/audit-logs', icon: '📋' },
-              { label: 'Supabase Dashboard', href: 'https://supabase.com/dashboard', icon: '🗄️', external: true },
-            ].map(({ label, href, icon, external }) => (
+              { label: 'Analytics',     href: '/admin/analytics',  icon: '�' },
+            ].map(({ label, href, icon }) => (
               <Link
                 key={label}
                 href={href}
-                target={external ? '_blank' : undefined}
-                rel={external ? 'noopener noreferrer' : undefined}
                 className="af-card af-card-hover p-4 block text-center"
               >
                 <div className="text-xl mb-1">{icon}</div>
