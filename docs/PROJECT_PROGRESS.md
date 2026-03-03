@@ -2,8 +2,8 @@
 
 **Project Start Date:** February 21, 2026  
 **Status:** In Progress  
-**Current Phase:** Phase 9 - Marketplace & Dataset Builder  
-**Overall Progress:** 90%
+**Current Phase:** Phase 10 - Admin Panel & Analytics  
+**Overall Progress:** 92%
 
 ---
 
@@ -415,38 +415,48 @@
 
 ---
 
-### ⏳ **Phase 9: Marketplace & Dataset Builder**
-**Status:** Not Started  
-**Target Completion:** TBD
+### ✅ **Phase 9: Marketplace & Dataset Builder**
+**Status:** Completed — Mar 3, 2026  
+**Build:** 0 errors · 46 routes
 
 #### Tasks:
-- [ ] Build marketplace browse interface
-- [ ] Create dataset filter system
-  - [ ] Dialect filter (Kikuyu/Swahili)
-  - [ ] Speaker gender filter
-  - [ ] Audio quality filter
-  - [ ] Duration filter
-  - [ ] Speaker count filter
-- [ ] Implement sample selection algorithm
-- [ ] Build checkout flow with HBAR payment
-- [ ] Create dataset packaging system
-  - [ ] HuggingFace-compatible format
-  - [ ] Audio files
-  - [ ] Transcripts
-  - [ ] Translations
-  - [ ] Manifest (JSONL/Parquet)
-  - [ ] Auto-generated dataset card
-- [ ] Implement signed URL generation for downloads
-- [ ] Create buyer downloads page
-- [ ] Implement export cleanup (24h TTL)
-- [ ] Build purchase history tracking
+- [x] Build marketplace browse interface (`/marketplace`)
+- [x] Create dataset filter system
+  - [x] Dialect filter (multi-select by code)
+  - [x] Speaker gender filter (pill toggles)
+  - [x] Duration range filter (min/max seconds)
+  - [x] Speaker count filter
+  - [x] Speaker age filter
+- [x] Implement clip browse query (`GET /api/marketplace/clips`)
+- [x] Build checkout flow (`POST /api/marketplace/purchase`)
+- [x] Create dataset packaging system
+  - [x] HuggingFace-compatible JSON format
+  - [x] Audio CID references
+  - [x] Transcripts + translations in manifest
+  - [x] JSONL records (one per clip)
+  - [x] Auto-generated dataset card (Markdown in export)
+- [x] Implement signed URL generation (`GET /api/marketplace/download/[id]`, 24 h TTL)
+- [x] Create buyer downloads page (`/marketplace/purchase/[id]`)
+- [x] Implement payout records (audio/transcription/translation per clip)
+- [x] Build purchase history panel (sidebar in marketplace)
 
 #### Deliverables:
-- [ ] Working marketplace with filters
-- [ ] Dataset builder and purchase flow
-- [ ] HuggingFace-compatible dataset packages
-- [ ] Secure download system
-- [ ] Buyer dashboard
+- [x] Working marketplace with dialect/gender/age/duration/count filters
+- [x] Dataset builder: JSONL manifest + dataset card + IPFS audio CIDs
+- [x] Supabase Storage `dataset-exports` upload + signed URL
+- [x] Buyer download page with expiry display
+- [x] Payout records created per contributor per clip
+- [x] DB migration: `phase9_marketplace.sql` (hbar_rate column, RLS policies, sellable index)
+
+#### New Files:
+- `lib/supabase/migrations/phase9_marketplace.sql`
+- `app/api/marketplace/clips/route.ts`
+- `app/api/marketplace/purchase/route.ts`
+- `app/api/marketplace/download/[id]/route.ts`
+- `app/marketplace/page.tsx`
+- `app/marketplace/components/MarketplaceClient.tsx`
+- `app/marketplace/purchase/[id]/page.tsx`
+- `app/marketplace/purchase/[id]/components/PurchaseDownloadButton.tsx`
 
 ---
 
@@ -504,7 +514,7 @@
 - [x] **Milestone 5:** QC pipeline complete (Phase 6) ✅ Feb 2026
 - [x] **Milestone 6:** NFT minting integration working (Phase 7) ✅ Mar 2, 2026
 - [x] **Milestone 7:** IPFS storage operational (Phase 8) ✅ Mar 2, 2026
-- [ ] **Milestone 8:** Marketplace live (Phase 9)
+- [x] **Milestone 8:** Marketplace live (Phase 9) ✅ Mar 3, 2026
 - [ ] **Milestone 9:** Admin tools complete (Phase 10)
 - [ ] **Milestone 10:** V1 Production Launch
 

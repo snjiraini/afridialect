@@ -236,12 +236,49 @@ export interface IPFSCleanupResponse {
 // ==========================================
 
 export interface DatasetFilter {
-  dialects?: string[]
-  minDuration?: number
-  maxDuration?: number
-  speakerGender?: string[]
-  speakerAge?: string[]
-  tags?: string[]
+  dialects?: string[]       // dialect codes e.g. ['kikuyu', 'swahili']
+  minDuration?: number      // seconds
+  maxDuration?: number      // seconds
+  speakerGender?: string[]  // 'male' | 'female' | 'mixed' | 'unknown'
+  speakerAge?: string[]     // 'child' | 'teen' | 'adult' | 'senior' | 'mixed'
+  speakerCount?: number     // exact speaker count filter
+}
+
+/** PRD §6.6.3: $5.00 per sample bundle */
+export const PRICE_PER_SAMPLE_USD = 5.00
+
+/** A sellable clip returned by the browse API */
+export interface MarketplaceClip {
+  id: string
+  dialectName: string
+  dialectCode: string
+  durationSeconds: number
+  speakerCount: number
+  speakerGender: string
+  speakerAge: string
+  audioNftTokenId: string | null
+  createdAt: string
+}
+
+export interface MarketplaceBrowseResponse {
+  clips: MarketplaceClip[]
+  total: number
+}
+
+export interface PurchaseRequest {
+  clipIds: string[]         // buyer-selected clip IDs
+  filters: DatasetFilter    // filters used (stored for audit)
+  hbarRateUSD: number       // HBAR/USD rate at checkout (buyer-supplied, server validates)
+}
+
+export interface PurchaseResponse {
+  success: boolean
+  purchaseId?: string
+  sampleCount?: number
+  priceUSD?: number
+  priceHBAR?: number
+  hbarRate?: number
+  error?: string
 }
 
 export interface DatasetPurchase {
@@ -249,13 +286,17 @@ export interface DatasetPurchase {
   buyerId: string
   filterCriteria: DatasetFilter
   sampleCount: number
-  totalPriceHBAR: string
-  totalPriceUSD: string
-  hbarRate: string
-  transactionId: string
-  downloadUrl: string | null
-  downloadExpiresAt: string | null
+  priceUsd: number
+  priceHbar: number
+  hbarRate: number
+  audioClipIds: string[]
+  paymentTransactionId: string | null
+  paymentStatus: 'pending' | 'completed' | 'failed' | 'refunded'
+  exportUrl: string | null
+  exportExpiresAt: string | null
+  downloadedAt: string | null
   createdAt: string
+  completedAt: string | null
 }
 
 // ==========================================
