@@ -11,6 +11,7 @@ import Topbar from '@/components/layouts/Topbar'
 import DialectManagerClient from '../components/DialectManagerClient'
 import PricingConfigClient from '../components/PricingConfigClient'
 import TaskUnlockClient from '../components/TaskUnlockClient'
+import PayoutStructureClient from '../components/PayoutStructureClient'
 
 export default async function AdminSettingsPage() {
   const supabase = await createClient()
@@ -56,6 +57,12 @@ export default async function AdminSettingsPage() {
     .select('key, value')
   const hbarPriceRow = (configRows ?? []).find((r) => r.key === 'hbar_price_usd')
   const hbarPriceUSD = hbarPriceRow?.value ?? '0.08'
+
+  // Fetch payout structure
+  const { data: payoutStructure } = await admin
+    .from('payout_structure')
+    .select('role, amount_usd, description, updated_at')
+    .order('role')
 
   // Fetch claimed tasks for admin override panel
   const { data: rawClaimedTasks } = await admin
@@ -146,6 +153,18 @@ export default async function AdminSettingsPage() {
             💱 Pricing Configuration
           </h2>
           <PricingConfigClient initialRate={hbarPriceUSD} />
+        </div>
+
+        {/* Payout structure */}
+        <div className="af-card p-6">
+          <h2 className="font-semibold mb-1 text-sm" style={{ color: 'var(--af-txt)' }}>
+            💸 Contributor Payout Structure
+          </h2>
+          <p className="text-xs mb-4" style={{ color: 'var(--af-muted)' }}>
+            Set the USD payout amount per sample for each contributor role and the platform fee.
+            Changes apply to all future purchases immediately.
+          </p>
+          <PayoutStructureClient initialStructure={payoutStructure ?? []} />
         </div>
 
         {/* Dialect management (interactive) */}

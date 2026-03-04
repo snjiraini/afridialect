@@ -20,16 +20,9 @@ import { createClient } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
 import { PRICE_PER_SAMPLE_USD } from '@/types'
 import type { PurchaseRequest, PurchaseResponse } from '@/types'
+import { DEFAULT_PAYOUT_STRUCTURE, type PayoutStructure } from '@/lib/hedera/payment'
 
-// Payout breakdown per PRD §6.6.3 — must sum to PRICE_PER_SAMPLE_USD
-const PAYOUT_AUDIO_USD         = 0.50
-const PAYOUT_QC_AUDIO_USD      = 1.00
-const PAYOUT_TRANSCRIPT_USD    = 1.00
-const PAYOUT_TRANSLATION_USD   = 1.00
-const PAYOUT_QC_TRANSCRIPT_USD = 1.00
-const PAYOUT_QC_TRANSLATION_USD= 1.00
-// 0.50 platform markup — retained, no payout record
-
+// Platform export TTL
 const EXPORT_TTL_SECONDS = 24 * 60 * 60 // 24 hours
 
 export async function POST(request: NextRequest) {
@@ -95,6 +88,26 @@ export async function POST(request: NextRequest) {
     const sampleCount = clips.length
     const priceUSD    = parseFloat((sampleCount * PRICE_PER_SAMPLE_USD).toFixed(2))
     const priceHBAR   = parseFloat((priceUSD / hbarRateUSD).toFixed(8))
+
+    // ── 4a. Load admin-configured payout structure ─────────────────────
+    let payoutStructure: PayoutStructure = DEFAULT_PAYOUT_STRUCTURE
+    try {
+      const { data: structureRows } = await admin.from('payout_structure').select('role, amount_usd')
+      if (structureRows && structureRows.length > 0) {
+        const map = Object.fromEntries(structureRows.map((r: { role: string; amount_usd: number }) => [r.role, Number(r.amount_usd)]))
+        payoutStructure = {
+          audio_uploader:           map['audio_uploader']          ?? DEFAULT_PAYOUT_STRUCTURE.audio_uploader,
+          audio_qc_reviewer:        map['audio_qc_reviewer']       ?? DEFAULT_PAYOUT_STRUCTURE.audio_qc_reviewer,
+          transcriber:              map['transcriber']             ?? DEFAULT_PAYOUT_STRUCTURE.transcriber,
+          translator:               map['translator']             ?? DEFAULT_PAYOUT_STRUCTURE.translator,
+          transcript_qc_reviewer:   map['transcript_qc_reviewer']  ?? DEFAULT_PAYOUT_STRUCTURE.transcript_qc_reviewer,
+          translation_qc_reviewer:  map['translation_qc_reviewer'] ?? DEFAULT_PAYOUT_STRUCTURE.translation_qc_reviewer,
+          platform_markup:          map['platform_markup']         ?? DEFAULT_PAYOUT_STRUCTURE.platform_markup,
+        }
+      }
+    } catch (e) {
+      console.warn('[purchase] Could not load payout_structure, using defaults:', e)
+    }
 
     // ── 5. Insert purchase record (pending) ────────────────────────────
     const expiresAt = new Date(Date.now() + EXPORT_TTL_SECONDS * 1000).toISOString()
@@ -253,8 +266,8 @@ Audio files are accessible via any public IPFS gateway:
         purchase_id:        purchaseId,
         recipient_id:       clip.uploader_id,
         payout_type:        'audio',
-        amount_usd:         PAYOUT_AUDIO_USD,
-        amount_hbar:        parseFloat((PAYOUT_AUDIO_USD / hbarRateUSD).toFixed(8)),
+        amount_usd:         payoutStructure.audio_uploader,
+        amount_hbar:        parseFloat((payoutStructure.audio_uploader / hbarRateUSD).toFixed(8)),
         transaction_status: 'pending',
       })
 
@@ -264,8 +277,8 @@ Audio files are accessible via any public IPFS gateway:
           purchase_id:        purchaseId,
           recipient_id:       audioQcReview.reviewer_id,
           payout_type:        'qc_review',
-          amount_usd:         PAYOUT_QC_AUDIO_USD,
-          amount_hbar:        parseFloat((PAYOUT_QC_AUDIO_USD / hbarRateUSD).toFixed(8)),
+          amount_usd:         payoutStructure.audio_qc_reviewer,
+          amount_hbar:        parseFloat((payoutStructure.audio_qc_reviewer / hbarRateUSD).toFixed(8)),
           transaction_status: 'pending',
         })
       }
@@ -276,8 +289,8 @@ Audio files are accessible via any public IPFS gateway:
           purchase_id:        purchaseId,
           recipient_id:       transcription.transcriber_id,
           payout_type:        'transcription',
-          amount_usd:         PAYOUT_TRANSCRIPT_USD,
-          amount_hbar:        parseFloat((PAYOUT_TRANSCRIPT_USD / hbarRateUSD).toFixed(8)),
+          amount_usd:         payoutStructure.transcriber,
+          amount_hbar:        parseFloat((payoutStructure.transcriber / hbarRateUSD).toFixed(8)),
           transaction_status: 'pending',
         })
       }
@@ -288,8 +301,8 @@ Audio files are accessible via any public IPFS gateway:
           purchase_id:        purchaseId,
           recipient_id:       translation.translator_id,
           payout_type:        'translation',
-          amount_usd:         PAYOUT_TRANSLATION_USD,
-          amount_hbar:        parseFloat((PAYOUT_TRANSLATION_USD / hbarRateUSD).toFixed(8)),
+          amount_usd:         payoutStructure.translator,
+          amount_hbar:        parseFloat((payoutStructure.translator / hbarRateUSD).toFixed(8)),
           transaction_status: 'pending',
         })
       }

@@ -1,35 +1,47 @@
 /**
  * POST /api/marketplace/payment
  *
- * Executes the on-chain HBAR payment for an existing (pending) dataset purchase.
+ * Executes the on-chain atomic purchase settlement for an existing (pending) purchase.
  *
  * Flow:
  * 1. Auth — buyer must own the purchase
  * 2. Load purchase + pending payouts from DB
  * 3. Lookup each recipient's hedera_account_id from profiles
  * 4. Look up the buyer's KMS key ID from their profile
- * 5. Build aggregated recipient list (one entry per unique Hedera account)
- * 6. Execute single atomic TransferTransaction on Hedera (buyer → contributors + treasury)
- * 7. Update all payout rows to completed, store transaction_id
- * 8. Update dataset_purchases.payment_transaction_id + payment_status = 'completed'
- * 9. Audit log
+ * 5. Load NFT records for the purchased clips (to build burn slots)
+ * 6. Find one un-burned serial per NFT record (audio / transcript / translation)
+ * 7. Load contributor KMS key IDs (needed to sign the NFT-return transfers)
+ * 8. Build aggregated HBAR recipient list (one entry per unique Hedera account)
+ * 9. Execute a single atomic BatchTransaction:
+ *      Inner Tx(s): TransferTransaction  — contributor(s) → treasury (NFT return)
+ *      Inner Tx(s): TokenBurnTransaction — treasury burns the returned serials
+ *      Inner Tx:    TransferTransaction  — buyer → contributors + platform (HBAR)
+ * 10. Update all payout rows to completed, store batch transaction_id
+ * 11. Record burned serials in nft_burns table
+ * 12. Update dataset_purchases.payment_transaction_id + payment_status = 'completed'
+ * 13. Audit log
  *
- * The Hedera TransferTransaction is the single network transaction that moves
- * real funds from the buyer to every contributor and the platform in one
- * atomic commit — satisfying the PRD §6 requirement for on-chain payout.
+ * BatchTransaction is Hedera's atomic batch primitive (SDK ≥ 2.80):
+ * all inner transactions commit or all revert together on-chain.
  */
 
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
 import {
-  executePurchasePayment,
   buildClipRecipients,
   aggregateRecipients,
   usdToHbar,
   type ClipContributors,
   type PayoutRecipient,
+  type PayoutStructure,
+  DEFAULT_PAYOUT_STRUCTURE,
 } from '@/lib/hedera/payment'
+import {
+  executeAtomicPurchaseBatch,
+  type NftBurnSlot,
+  type HbarRecipient,
+} from '@/lib/hedera/nft'
 
 // Platform treasury Hedera account — receives markup + fallback for missing contributors
 function getPlatformTreasuryId(): string {
@@ -115,7 +127,29 @@ export async function POST(request: NextRequest) {
     const platformTreasuryId = getPlatformTreasuryId()
     const clipIds: string[] = purchase.audio_clip_ids ?? []
 
-    // ── 5. Load clip contributors (uploader, transcriber, translator, QC) ─
+    // ── 5a. Load admin-configured payout structure ────────────────────────
+    let payoutStructure: PayoutStructure = DEFAULT_PAYOUT_STRUCTURE
+    try {
+      const { data: structureRows } = await admin
+        .from('payout_structure')
+        .select('role, amount_usd')
+      if (structureRows && structureRows.length > 0) {
+        const map = Object.fromEntries(structureRows.map((r: { role: string; amount_usd: number }) => [r.role, Number(r.amount_usd)]))
+        payoutStructure = {
+          audio_uploader:           map['audio_uploader']           ?? DEFAULT_PAYOUT_STRUCTURE.audio_uploader,
+          audio_qc_reviewer:        map['audio_qc_reviewer']        ?? DEFAULT_PAYOUT_STRUCTURE.audio_qc_reviewer,
+          transcriber:              map['transcriber']              ?? DEFAULT_PAYOUT_STRUCTURE.transcriber,
+          translator:               map['translator']              ?? DEFAULT_PAYOUT_STRUCTURE.translator,
+          transcript_qc_reviewer:   map['transcript_qc_reviewer']   ?? DEFAULT_PAYOUT_STRUCTURE.transcript_qc_reviewer,
+          translation_qc_reviewer:  map['translation_qc_reviewer']  ?? DEFAULT_PAYOUT_STRUCTURE.translation_qc_reviewer,
+          platform_markup:          map['platform_markup']          ?? DEFAULT_PAYOUT_STRUCTURE.platform_markup,
+        }
+      }
+    } catch (e) {
+      console.warn('[payment] Could not load payout_structure, using defaults:', e)
+    }
+
+    // ── 5b. Load clip contributors (uploader, transcriber, translator, QC) ─
     // We need the hedera_account_id for each contributor.
     const { data: clips, error: clipsErr } = await admin
       .from('audio_clips')
@@ -172,7 +206,7 @@ export async function POST(request: NextRequest) {
       hederaById.set(p.id, p.hedera_account_id ?? null)
     }
 
-    // ── 6. Build per-clip recipient lists, then aggregate ─────────────────
+    // ── 6. Build per-clip HBAR recipient lists, then aggregate ─────────────
     const perClipRecipients: PayoutRecipient[][] = []
 
     for (const clip of clips) {
@@ -211,30 +245,133 @@ export async function POST(request: NextRequest) {
           : null,
       }
 
-      const clipRecipients = buildClipRecipients(contributors, hbarRateUSD, platformTreasuryId)
+      const clipRecipients = buildClipRecipients(contributors, hbarRateUSD, platformTreasuryId, payoutStructure)
       perClipRecipients.push(clipRecipients)
     }
 
     const aggregated = aggregateRecipients(perClipRecipients)
-
-    // Total HBAR to debit from buyer (must match purchase record)
     const totalHbar = aggregated.reduce((sum, r) => sum + r.amountHbar, 0)
 
     console.log(`[payment] Purchase ${purchaseId}: ${clipIds.length} clips, ${aggregated.length} recipients, ${totalHbar.toFixed(8)} HBAR`)
 
-    // ── 7. Execute on-chain payment ───────────────────────────────────────
-    const paymentResult = await executePurchasePayment({
+    // ── 7. Load NFT records for the purchased clips ───────────────────────
+    // We need token_id, serial_numbers, contributor_id (and their KMS key)
+    // for the atomic NFT-return + burn inner transactions.
+    const { data: nftRecords, error: nftErr } = await admin
+      .from('nft_records')
+      .select('id, audio_clip_id, nft_type, token_id, serial_numbers, contributor_id')
+      .in('audio_clip_id', clipIds)
+
+    if (nftErr) {
+      console.error('[payment] nft_records load error:', nftErr)
+      return NextResponse.json({ error: 'Failed to load NFT records' }, { status: 500 })
+    }
+
+    // For each NFT record, find one serial that has NOT been burned yet
+    // by checking the nft_burns table for already-used serials.
+    const nftRecordIds = (nftRecords ?? []).map((r) => r.id)
+    const { data: existingBurns } = nftRecordIds.length
+      ? await admin
+          .from('nft_burns')
+          .select('nft_record_id, serial_number')
+          .in('nft_record_id', nftRecordIds)
+      : { data: [] }
+
+    // Build a set of already-burned (recordId, serial) pairs
+    const burnedSet = new Set<string>(
+      (existingBurns ?? []).map((b) => `${b.nft_record_id}:${b.serial_number}`)
+    )
+
+    // Collect all contributor IDs from NFT records so we can load KMS keys
+    const nftContributorIds = [...new Set((nftRecords ?? []).map((r) => r.contributor_id))]
+    const { data: nftContributorProfiles } = nftContributorIds.length
+      ? await admin
+          .from('profiles')
+          .select('id, hedera_account_id, kms_key_id')
+          .in('id', nftContributorIds)
+      : { data: [] }
+
+    const contributorProfileMap = new Map<string, { hederaAccountId: string | null; kmsKeyId: string | null }>()
+    for (const p of nftContributorProfiles ?? []) {
+      contributorProfileMap.set(p.id, {
+        hederaAccountId: p.hedera_account_id ?? null,
+        kmsKeyId:        p.kms_key_id ?? null,
+      })
+    }
+
+    // Build burn slots — one serial per NFT record per purchased clip
+    const burnSlots: NftBurnSlot[] = []
+    const burnRecords: Array<{ nftRecordId: string; serial: number }> = []
+
+    for (const record of nftRecords ?? []) {
+      const profile = contributorProfileMap.get(record.contributor_id)
+      if (!profile?.hederaAccountId || !profile?.kmsKeyId) {
+        // Contributor has no Hedera account — skip burn for this record
+        console.warn(
+          `[payment] NFT record ${record.id} contributor ${record.contributor_id} ` +
+          `has no Hedera account — skipping burn`
+        )
+        continue
+      }
+
+      // Pick the first un-burned serial from this record
+      const serials: number[] = record.serial_numbers ?? []
+      const availableSerial = serials.find(
+        (s) => !burnedSet.has(`${record.id}:${s}`)
+      )
+
+      if (availableSerial === undefined) {
+        console.warn(
+          `[payment] NFT record ${record.id} (${record.nft_type}) has no available ` +
+          `serials to burn — all ${serials.length} serial(s) already burned`
+        )
+        continue
+      }
+
+      burnSlots.push({
+        tokenId:              record.token_id,
+        serial:               availableSerial,
+        contributorAccountId: profile.hederaAccountId,
+        contributorKmsKeyId:  profile.kmsKeyId,
+      })
+      burnRecords.push({ nftRecordId: record.id, serial: availableSerial })
+    }
+
+    console.log(
+      `[payment] Burn slots: ${burnSlots.length} NFT(s) across ` +
+      `${[...new Set(burnSlots.map(s => s.tokenId))].length} token collection(s)`
+    )
+
+    // ── 8. Execute atomic BatchTransaction ───────────────────────────────
+    //   Inner Tx 1…N : NFT contributor → treasury (one tx per unique contributor)
+    //   Inner Tx N+1…M: TokenBurnTransaction per token collection
+    //   Inner Tx Last : HBAR buyer → all recipients
+    const batchResult = await executeAtomicPurchaseBatch({
+      burnSlots,
+      hbarRecipients: aggregated as HbarRecipient[],
+      totalHbar,
       buyerHederaAccountId: buyerProfile.hedera_account_id,
       buyerKmsKeyId:        buyerProfile.kms_key_id,
-      totalAmountHbar:      totalHbar,
-      recipients:           aggregated,
       memo: `Afridialect purchase ${purchaseId.slice(0, 8)}`,
     })
 
-    const txId = paymentResult.transactionId
-    console.log(`[payment] On-chain tx: ${txId}`)
+    const txId = batchResult.batchTransactionId
+    console.log(`[payment] Atomic batch tx SUCCESS: ${txId}`)
 
-    // ── 8. Update payouts to completed ────────────────────────────────────
+    // ── 9. Record burned serials in nft_burns ────────────────────────────
+    if (burnRecords.length > 0) {
+      await admin.from('nft_burns').insert(
+        burnRecords.map((b) => ({
+          nft_record_id:  b.nftRecordId,
+          serial_number:  b.serial,
+          purchase_id:    purchaseId,
+          burned_at:      new Date().toISOString(),
+          transaction_id: txId,
+        }))
+      )
+    }
+
+    // ── 10. Update payouts to completed ───────────────────────────────────
     await admin
       .from('payouts')
       .update({
@@ -245,7 +382,7 @@ export async function POST(request: NextRequest) {
       .eq('purchase_id', purchaseId)
       .eq('transaction_status', 'pending')
 
-    // ── 10. Update purchase record ────────────────────────────────────────
+    // ── 11. Update purchase record ────────────────────────────────────────
     await admin
       .from('dataset_purchases')
       .update({
@@ -255,17 +392,18 @@ export async function POST(request: NextRequest) {
       })
       .eq('id', purchaseId)
 
-    // ── 11. Audit log ─────────────────────────────────────────────────────
+    // ── 12. Audit log ─────────────────────────────────────────────────────
     await admin.from('audit_logs').insert({
       user_id:       user.id,
-      action:        'hedera_payment_executed',
+      action:        'hedera_atomic_batch_executed',
       resource_type: 'dataset_purchases',
       resource_id:   purchaseId,
       details: {
-        transaction_id:  txId,
-        total_hbar:      totalHbar,
-        recipient_count: aggregated.length,
-        clip_count:      clipIds.length,
+        transaction_id:   txId,
+        total_hbar:       totalHbar,
+        recipient_count:  aggregated.length,
+        clip_count:       clipIds.length,
+        nft_burns:        burnRecords.length,
       },
     })
 
@@ -274,6 +412,7 @@ export async function POST(request: NextRequest) {
       transactionId: txId,
       totalHbar,
       recipientCount: aggregated.length,
+      nftsBurned:    burnRecords.length,
       hashscanUrl: `https://hashscan.io/${process.env.HEDERA_NETWORK ?? 'testnet'}/transaction/${txId}`,
     })
   } catch (err) {
@@ -283,7 +422,9 @@ export async function POST(request: NextRequest) {
     // Mark purchase as failed on unrecoverable Hedera errors
     if (
       typeof msg === 'string' &&
-      (msg.includes('Hedera payment') || msg.includes('INSUFFICIENT_ACCOUNT_BALANCE'))
+      (msg.includes('Atomic purchase batch failed') ||
+       msg.includes('Hedera payment') ||
+       msg.includes('INSUFFICIENT_ACCOUNT_BALANCE'))
     ) {
       if (purchaseIdForErrorHandler) {
         const admin = createAdminClient()

@@ -2,7 +2,7 @@
 
 **Project Start Date:** February 21, 2026  
 **Status:** In Progress  
-**Current Phase:** Phase 10 - Admin Panel & Analytics — ✅ COMPLETE  
+**Current Phase:** Phase 11 Extension — Atomic Batch, AI/ML Dataset & Admin Payout Config — ✅ COMPLETE  
 **Overall Progress:** 100%
 
 ---
@@ -500,6 +500,50 @@
 
 ---
 
+### ✅ **Phase 11 Extension: Atomic Batch Purchase, AI/ML Dataset & Admin Payout Config**
+**Status:** Completed — Mar 4, 2026
+**Branch:** `feature/AI-ML-dataset`
+**Build:** 0 errors · 0 TypeScript errors
+
+#### Tasks:
+- [x] Reduce NFT mint count from 300 → 5 per token collection (`NFT_MAX_SUPPLY = 5`)
+- [x] NFT burning via treasury intermediation (HTS requirement) wrapped in atomic `BatchTransaction`
+- [x] Replace `burnNftSerials()` sequential flow with `executeAtomicPurchaseBatch()`
+- [x] Transaction progress UI (3-step indicator, animated pulse, HashScan link on success)
+- [x] Admin-configurable payout structure (`payout_structure` DB table + admin UI)
+- [x] Remove all hardcoded USD payout constants from purchase and payment routes
+- [x] Post-mint staging cleanup extended to transcript and translation staging buckets
+- [x] HuggingFace-compatible AI/ML dataset ZIP (audio from IPFS + JSONL manifest + dataset card)
+- [x] Dataset package auto-deleted from storage after first successful download
+- [x] Download tracking (`download_count`, `downloaded_at`, `package_deleted_at`)
+- [x] `nft_burns` table records every burned serial with purchase link
+- [x] DB migration `phase11_payout_structure.sql` (idempotent, all changes additive)
+
+#### Deliverables:
+- [x] `executeAtomicPurchaseBatch()` in `lib/hedera/nft.ts`
+- [x] `PayoutStructure` + `DEFAULT_PAYOUT_STRUCTURE` in `lib/hedera/payment.ts`
+- [x] `GET /api/marketplace/download/[id]` — full IPFS→ZIP→signed-URL flow
+- [x] `POST /api/ipfs/cleanup` — extended to 3 staging buckets
+- [x] `GET/PUT /api/admin/payout-structure` — admin payout API
+- [x] `PayoutStructureClient` — interactive admin UI
+- [x] `phase11_payout_structure.sql` — `payout_structure`, new columns on purchases/clips/transcriptions/translations
+
+#### New / Modified Files:
+- `lib/hedera/nft.ts` (modified)
+- `lib/hedera/payment.ts` (modified)
+- `app/api/marketplace/payment/route.ts` (modified)
+- `app/api/marketplace/purchase/route.ts` (modified)
+- `app/api/marketplace/download/[id]/route.ts` (modified)
+- `app/api/ipfs/cleanup/route.ts` (modified)
+- `app/api/admin/payout-structure/route.ts` (new)
+- `app/admin/components/PayoutStructureClient.tsx` (new)
+- `app/admin/settings/page.tsx` (modified)
+- `app/marketplace/components/MarketplaceClient.tsx` (modified)
+- `app/marketplace/purchase/[id]/page.tsx` (modified)
+- `lib/supabase/migrations/phase11_payout_structure.sql` (new)
+
+---
+
 ## Version Control & Package Versions
 
 ### Planned Stable Versions (LTS):
@@ -528,6 +572,7 @@
 - [x] **Milestone 8:** Marketplace live (Phase 9) ✅ Mar 3, 2026
 - [x] **Milestone 9:** Admin tools complete (Phase 10) ✅ Mar 3, 2026
 - [x] **Milestone 10:** V1 Production Launch — all phases complete ✅ Mar 3, 2026
+- [x] **Milestone 11:** Atomic batch purchase + AI/ML dataset + admin payout config ✅ Mar 4, 2026
 
 ---
 
@@ -579,6 +624,23 @@
 - Created `system_config` DB table for persisted platform settings
 - All 10 phases complete — V1 feature-complete
 
+### March 4, 2026
+- Phase 11 extension completed: Atomic Batch Purchase, AI/ML Dataset, Admin Payout Config
+- Reduced `NFT_MAX_SUPPLY` from 300 → 5 serials per token collection
+- Implemented `executeAtomicPurchaseBatch()` using Hedera SDK `BatchTransaction` (v2.80)
+  - Inner Tx: contributor NFT return to treasury (ThresholdKey signed via KMS)
+  - Inner Tx: `TokenBurnTransaction` from treasury (supply key signed)
+  - Inner Tx: HBAR revenue distribution buyer → all contributors (ThresholdKey signed via KMS)
+- Replaced hardcoded USD payout constants with `payout_structure` DB table (admin-configurable)
+- Added `PayoutStructureClient` admin UI and `GET/PUT /api/admin/payout-structure` API
+- Extended `/api/ipfs/cleanup` to remove transcript and translation staging files
+- Rewrote `/api/marketplace/download/[id]` to build HuggingFace-compatible ZIP from IPFS
+  - README.md dataset card, data.jsonl manifest, audio + transcript + translation files
+  - 24h signed URL TTL, auto-deleted from storage after first download
+- Added 3-step transaction progress UI with animated pulse and HashScan deeplink
+- DB migration `phase11_payout_structure.sql` applied (additive, idempotent)
+- Build: `npm run build` 0 errors, `npx tsc --noEmit` 0 errors
+
 ---
 
-**Last Updated:** March 3, 2026
+**Last Updated:** March 4, 2026

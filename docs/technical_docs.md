@@ -1,6 +1,6 @@
 # Afridialect Technical Documentation
 
-**Last Updated:** February 24, 2026
+**Last Updated:** March 4, 2026
 
 ## Table of Contents
 
@@ -1175,11 +1175,17 @@ If you see `http://localhost:3000/auth/login?email=...&password=...`, this is NO
 
 ---
 
-## Hedera Contributor Payment System
+## Hedera Contributor Payment System (Phase 11)
 
 ### Overview
 
-Implemented in `feature/hedera-contributor-payments`. After a dataset purchase is created, a single atomic Hedera `TransferTransaction` distributes HBAR from the buyer's account to every contributor and the platform treasury in one network commit.
+Implemented in `feature/AI-ML-dataset`. The marketplace purchase flow executes a **single atomic `BatchTransaction`** on Hedera (SDK ≥ 2.80) that:
+
+1. Returns each purchased NFT from the contributor's account back to treasury (required before burning on HTS).
+2. Burns the returned NFT serials from treasury using a `TokenBurnTransaction`.
+3. Distributes HBAR revenue from the buyer to every contributor and the platform treasury.
+
+All three steps are wrapped in one `BatchTransaction` — the network commits all inner transactions or reverts all of them atomically.
 
 ### Payout Breakdown (per sample, $6.00 USD total)
 
@@ -1194,32 +1200,161 @@ Implemented in `feature/hedera-contributor-payments`. After a dataset purchase i
 | Platform (treasury) | $0.50 | — (no payout row) |
 | **Total** | **$6.00** | |
 
-> **Audio QC reviewer** was added (March 4, 2026) to pay the reviewer who approves audio clips during Step 1 of the QC pipeline (PRD §4.3 Step 1). `PRICE_PER_SAMPLE_USD` updated from `$5.00` to `$6.00`.
+> These amounts are now **admin-configurable** via the `payout_structure` database table and `/admin/settings` UI. The values above are the PRD §6.6.3 defaults used as fallback if the table is empty.
 
 ### Key Files
 
 ```
-lib/hedera/payment.ts                       — Core payment service (ClipContributors, buildClipRecipients, executePurchasePayment)
-app/api/marketplace/payment/route.ts        — POST /api/marketplace/payment endpoint
-app/api/marketplace/purchase/route.ts       — POST /api/marketplace/purchase (creates payout records)
-lib/supabase/migrations/phase10_payment.sql — DB migration (payment_transaction_id, indexes)
+lib/hedera/payment.ts                                — PayoutStructure interface, DEFAULT_PAYOUT_STRUCTURE, buildClipRecipients, aggregateRecipients
+lib/hedera/nft.ts                                    — executeAtomicPurchaseBatch, NftBurnSlot, HbarRecipient types
+app/api/marketplace/payment/route.ts                 — POST /api/marketplace/payment (executes BatchTransaction)
+app/api/marketplace/purchase/route.ts                — POST /api/marketplace/purchase (creates purchase + payout records)
+app/api/admin/payout-structure/route.ts              — GET/PUT /api/admin/payout-structure (admin API)
+app/admin/components/PayoutStructureClient.tsx        — Admin UI for editing per-role amounts
+lib/supabase/migrations/phase11_payout_structure.sql — DB migration (payout_structure, nft_burns, staging cleanup columns)
 ```
 
 ### Two-Step Purchase Flow
 
-1. **POST `/api/marketplace/purchase`** — validates clips, creates `dataset_purchases` record (`payment_status = 'pending'`), inserts payout rows, builds dataset export.
-2. **POST `/api/marketplace/payment`** — executes single Hedera `TransferTransaction` (buyer → all contributors + treasury atomically), updates all payout rows to `completed`, sets `payment_transaction_id` on the purchase.
+1. **POST `/api/marketplace/purchase`** — validates clips, creates `dataset_purchases` record (`payment_status = 'pending'`), inserts payout rows using admin-configured amounts, builds initial JSONL manifest.
+2. **POST `/api/marketplace/payment`** — executes atomic `BatchTransaction` (NFT returns + burns + HBAR distribution), inserts `nft_burns` records, updates all payout rows to `completed`, sets `payment_transaction_id` on the purchase.
 
-### Buyer Signing (ThresholdKey 2-of-2)
+### Atomic BatchTransaction — Inner Transaction Order
 
-The buyer's Hedera account uses ThresholdKey (2-of-2):
-- **Buyer KMS key** — signed via `signWithKMS()` using `transferTx.signWith()`
-- **Platform guardian key** — signed automatically by `client.execute()` (operator = platform guardian)
+```
+BatchTransaction {
+  // 1 tx per unique NFT contributor (may combine audio + transcript + translation NFTs)
+  TransferTransaction: contributor(s) → treasury (NFT return)
+
+  // 1 tx per unique token collection ID
+  TokenBurnTransaction: treasury burns serial(s)
+
+  // 1 tx total
+  TransferTransaction: buyer → all HBAR recipients (revenue distribution)
+}
+```
+
+### Why BatchTransaction Is Required for NFT Burns
+
+HTS (Hedera Token Service) NFTs can only be burned by the account holding the **supply key** (treasury). Contributors hold their NFTs, so:
+- Step 1: `TransferTransaction` moves NFTs from contributor → treasury (contributor ThresholdKey signs).
+- Step 2: `TokenBurnTransaction` burns from treasury (treasury supply key signs).
+
+Doing these as sequential transactions risks partial failure. `BatchTransaction` wraps all steps atomically.
+
+### Signing Requirements Per Inner Transaction
+
+| Transaction | Signers |
+|---|---|
+| NFT `TransferTransaction` (contributor → treasury) | Contributor KMS key + guardian KMS key (ThresholdKey 2-of-2) |
+| `TokenBurnTransaction` (treasury burns) | Treasury `PrivateKey` (supply key) |
+| HBAR `TransferTransaction` (buyer → recipients) | Buyer KMS key + guardian KMS key (ThresholdKey 2-of-2) |
+| Outer `BatchTransaction` | Operator (treasury) — automatic via `execute()` |
+
+### NFT Supply Limit Changed: 300 → 5
+
+`NFT_MAX_SUPPLY` in `lib/hedera/nft.ts` was reduced from 300 to **5** serials per token collection (audio, transcript, translation). This applies to new mints only.
+
+### Admin-Configurable Payout Structure
+
+Admins can adjust per-role USD amounts at `/admin/settings` → "Contributor Payout Structure":
+- The `payout_structure` table stores one row per role with `amount_usd`.
+- The payment route loads this table at checkout time; falls back to `DEFAULT_PAYOUT_STRUCTURE` if empty.
+- The `PayoutStructure` interface and `DEFAULT_PAYOUT_STRUCTURE` constant are exported from `lib/hedera/payment.ts`.
+
+### nft_burns Table
+
+Records every NFT serial burned as part of a purchase. Prevents the same serial from being re-used.
+
+```sql
+SELECT * FROM public.nft_burns
+WHERE purchase_id = '<purchase_uuid>';
+-- Returns: nft_record_id, serial_number, burned_at, transaction_id
+```
 
 ### Missing Contributor Fallback
 
-If a contributor has no Hedera account set up (`hedera_account_id = null`), their payout slot falls back to the platform treasury — funds are never lost on-chain.
+If a contributor has no Hedera account set up (`hedera_account_id = null`), their HBAR payout slot falls back to the platform treasury — funds are never lost on-chain. Their NFT burn is skipped with a warning log.
 
 ### Database Migration
 
-Run `lib/supabase/migrations/phase10_payment.sql` in Supabase Dashboard → SQL Editor. Adds `payment_transaction_id` and `hashscan_url` to `dataset_purchases`, and `transaction_id` + `processed_at` to `payouts`.
+Run `lib/supabase/migrations/phase11_payout_structure.sql` in Supabase Dashboard → SQL Editor. Creates:
+- `payout_structure` table with RLS (admin-only) and seed defaults
+- `download_count` + `package_deleted_at` columns on `dataset_purchases`
+- `staging_cleaned_at` columns on `audio_clips`, `transcriptions`, `translations`
+- `ipfs_pin_logs` table for tracking pinned CIDs
+
+---
+
+## AI/ML Dataset Download (Phase 11)
+
+### Overview
+
+On purchase, the download endpoint builds a **HuggingFace-compatible ZIP package** assembled fresh from IPFS-pinned files. The package is stored in Supabase `dataset-exports` storage with a 24-hour TTL and auto-deleted from storage after the first successful download.
+
+### Package Structure
+
+```
+dataset.zip/
+├── README.md                         ← HuggingFace dataset card (YAML frontmatter + markdown)
+├── data.jsonl                        ← JSONL manifest (one JSON object per sample)
+├── audio/
+│   └── <clip-id>.<dialect>.<ext>     ← Audio files downloaded fresh from IPFS
+├── transcripts/
+│   └── <clip-id>.<dialect>.txt       ← Verbatim transcriptions
+└── translations/
+    └── <clip-id>.en.txt              ← English translations
+```
+
+### JSONL Manifest Schema
+
+| Field | Type | Description |
+|---|---|---|
+| `id` | string | Unique clip UUID |
+| `dialect_code` | string | e.g. `"kikuyu"` |
+| `dialect_name` | string | e.g. `"Kikuyu"` |
+| `audio_file` | string | Path within ZIP |
+| `audio_cid` | string | IPFS CID (permanent reference) |
+| `transcript_file` | string\|null | Path within ZIP |
+| `translation_file` | string\|null | Path within ZIP |
+| `duration_seconds` | number | Clip length in seconds |
+| `speaker_gender` | string | `male/female/mixed/unknown` |
+| `speaker_age` | string | `child/teen/adult/senior/mixed` |
+| `speaker_count` | number | Number of speakers |
+| `transcript` | string\|null | Full transcription text (inline) |
+| `translation` | string\|null | Full English translation (inline) |
+
+### Storage Lifecycle
+
+| Stage | Location | When |
+|---|---|---|
+| Raw upload | `audio-staging` | After uploader submits |
+| After minting | `audio-staging` deleted | `POST /api/ipfs/cleanup` (admin-triggered) |
+| On purchase download | `dataset-exports` ZIP created | `GET /api/marketplace/download/[id]` |
+| After first download | `dataset-exports` ZIP deleted | Auto (async, post-response) |
+| Audio always available | IPFS (Pinata) | Permanently pinned at mint |
+
+### Staging Cleanup Endpoint
+
+`POST /api/ipfs/cleanup` — admin only. Removes staging files (audio-staging, transcript-staging, translation-staging) for a minted clip after verifying the audio CID is pinned on Pinata. Idempotent — safe to call multiple times.
+
+```json
+{ "clipId": "uuid" }
+```
+
+Response: `{ success, clipId, removedPaths: string[] }`
+
+### Download Tracking
+
+- `dataset_purchases.download_count` — incremented on every download request.
+- `dataset_purchases.downloaded_at` — timestamp of the first download.
+- `dataset_purchases.package_deleted_at` — set when the ZIP is auto-deleted after download.
+- Audit log entry: `action = 'dataset_download'` with `sample_count`, `price_usd`, `download_count`.
+
+### Key Files
+
+```
+app/api/marketplace/download/[id]/route.ts  — GET endpoint: builds ZIP from IPFS, serves signed URL, auto-deletes
+app/api/ipfs/cleanup/route.ts               — POST endpoint: admin staging cleanup
+app/marketplace/purchase/[id]/page.tsx      — Updated download section (ZIP format info)
+```

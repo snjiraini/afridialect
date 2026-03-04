@@ -65,6 +65,28 @@ export interface PurchasePaymentResult {
   recipients: PayoutRecipient[]
 }
 
+/** Admin-configurable payout amounts per role (loaded from payout_structure table) */
+export interface PayoutStructure {
+  audio_uploader: number
+  audio_qc_reviewer: number
+  transcriber: number
+  translator: number
+  transcript_qc_reviewer: number
+  translation_qc_reviewer: number
+  platform_markup: number
+}
+
+/** Default fallback payout structure (PRD §6.6.3 — $6.00 total) */
+export const DEFAULT_PAYOUT_STRUCTURE: PayoutStructure = {
+  audio_uploader:           0.50,
+  audio_qc_reviewer:        1.00,
+  transcriber:              1.00,
+  translator:               1.00,
+  transcript_qc_reviewer:   1.00,
+  translation_qc_reviewer:  1.00,
+  platform_markup:          0.50,
+}
+
 // ──────────────────────────────────────────────────────────────────────────────
 // Helpers
 // ──────────────────────────────────────────────────────────────────────────────
@@ -212,19 +234,22 @@ export interface ClipContributors {
 }
 
 /**
- * Build the recipient list for one clip purchase based on PRD §6.6.3.
+ * Build the recipient list for one clip purchase based on the admin-configured
+ * payout structure (or the PRD §6.6.3 defaults if not configured).
  *
  * Missing contributor accounts (null) fall back to the platform treasury
  * so funds are never lost.
  *
- * @param contributors  Hedera account IDs of the clip contributors
- * @param hbarRateUSD   HBAR/USD exchange rate at checkout
+ * @param contributors    Hedera account IDs of the clip contributors
+ * @param hbarRateUSD     HBAR/USD exchange rate at checkout
  * @param platformTreasuryId  Hedera account to receive platform markup + fallbacks
+ * @param payouts         Admin-configured payout amounts (defaults used if omitted)
  */
 export function buildClipRecipients(
   contributors: ClipContributors,
   hbarRateUSD: number,
-  platformTreasuryId: string
+  platformTreasuryId: string,
+  payouts: PayoutStructure = DEFAULT_PAYOUT_STRUCTURE
 ): PayoutRecipient[] {
   const fallback = platformTreasuryId
 
@@ -233,13 +258,13 @@ export function buildClipRecipients(
     amountUsd: number
     label: string
   }> = [
-    { accountId: contributors.uploaderHederaAccountId,              amountUsd: 0.50, label: 'audio uploader' },
-    { accountId: contributors.audioQcReviewerHederaAccountId,       amountUsd: 1.00, label: 'audio QC reviewer' },
-    { accountId: contributors.transcriberHederaAccountId,           amountUsd: 1.00, label: 'transcriber' },
-    { accountId: contributors.translatorHederaAccountId,            amountUsd: 1.00, label: 'translator' },
-    { accountId: contributors.transcriptQcReviewerHederaAccountId,  amountUsd: 1.00, label: 'transcript QC reviewer' },
-    { accountId: contributors.translationQcReviewerHederaAccountId, amountUsd: 1.00, label: 'translation QC reviewer' },
-    { accountId: platformTreasuryId,                                amountUsd: 0.50, label: 'platform markup' },
+    { accountId: contributors.uploaderHederaAccountId,              amountUsd: payouts.audio_uploader,           label: 'audio uploader' },
+    { accountId: contributors.audioQcReviewerHederaAccountId,       amountUsd: payouts.audio_qc_reviewer,        label: 'audio QC reviewer' },
+    { accountId: contributors.transcriberHederaAccountId,           amountUsd: payouts.transcriber,              label: 'transcriber' },
+    { accountId: contributors.translatorHederaAccountId,            amountUsd: payouts.translator,               label: 'translator' },
+    { accountId: contributors.transcriptQcReviewerHederaAccountId,  amountUsd: payouts.transcript_qc_reviewer,  label: 'transcript QC reviewer' },
+    { accountId: contributors.translationQcReviewerHederaAccountId, amountUsd: payouts.translation_qc_reviewer, label: 'translation QC reviewer' },
+    { accountId: platformTreasuryId,                                amountUsd: payouts.platform_markup,          label: 'platform markup' },
   ]
 
   return slots.map((slot) => ({

@@ -531,7 +531,7 @@ export default function MarketplaceClient({
 
       {/* ── Right: Cart ───────────────────────────────────────────── */}
       <aside className="lg:col-span-1 space-y-4">
-        {/* Purchase success */}
+        {/* Purchase / payment progress */}
         {purchaseResult && (
           <div
             className="af-card p-5"
@@ -540,23 +540,95 @@ export default function MarketplaceClient({
             <p className="text-sm font-semibold mb-1" style={{ color: 'var(--af-txt)' }}>
               {paymentTxId ? '✅ Payment Complete' : paymentLoading ? '⏳ Processing Payment…' : paymentError ? '⚠️ Payment Issue' : '🛒 Order Created'}
             </p>
-            <p className="text-xs mb-2" style={{ color: 'var(--af-muted)' }}>
+            <p className="text-xs mb-3" style={{ color: 'var(--af-muted)' }}>
               {purchaseResult.sampleCount} samples · ${purchaseResult.priceUSD.toFixed(2)} USD · ℏ{purchaseResult.priceHBAR.toFixed(4)}
             </p>
 
-            {/* On-chain payment status */}
-            {paymentLoading && (
-              <p className="text-xs mb-2 animate-pulse" style={{ color: 'var(--af-primary)' }}>
-                Sending HBAR to contributors on Hedera…
-              </p>
+            {/* Blockchain transaction progress steps */}
+            {(paymentLoading || paymentTxId || paymentError) && (
+              <div className="space-y-2 mb-3">
+                {/* Step 1 */}
+                <div className="flex items-start gap-2">
+                  <span className="text-sm mt-0.5">
+                    {paymentLoading || paymentTxId ? '✅' : '⏳'}
+                  </span>
+                  <div>
+                    <p className="text-xs font-medium" style={{ color: 'var(--af-txt)' }}>
+                      Purchase record created
+                    </p>
+                    <p className="text-[10px]" style={{ color: 'var(--af-muted)' }}>
+                      Order {purchaseResult.purchaseId.slice(0, 8).toUpperCase()}… reserved
+                    </p>
+                  </div>
+                </div>
+
+                {/* Step 2 */}
+                <div className="flex items-start gap-2">
+                  <span className="text-sm mt-0.5">
+                    {paymentTxId ? '✅' : paymentLoading ? '🔄' : paymentError ? '❌' : '⏳'}
+                  </span>
+                  <div>
+                    <p className={`text-xs font-medium ${paymentLoading ? 'animate-pulse' : ''}`} style={{ color: paymentLoading ? 'var(--af-primary)' : 'var(--af-txt)' }}>
+                      {paymentLoading ? 'Broadcasting to Hedera network…' : paymentTxId ? 'HBAR transferred on-chain' : paymentError ? 'On-chain transfer failed' : 'Hedera HBAR transfer'}
+                    </p>
+                    {paymentLoading && (
+                      <p className="text-[10px]" style={{ color: 'var(--af-muted)' }}>
+                        Distributing ℏ{purchaseResult.priceHBAR.toFixed(4)} to contributors + platform
+                      </p>
+                    )}
+                    {paymentTxId && (
+                      <p className="text-[10px]" style={{ color: 'var(--af-muted)' }}>
+                        ℏ{purchaseResult.priceHBAR.toFixed(4)} distributed to all contributors
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Step 3 */}
+                <div className="flex items-start gap-2">
+                  <span className="text-sm mt-0.5">
+                    {paymentTxId ? '✅' : paymentLoading ? '⏳' : '⏳'}
+                  </span>
+                  <div>
+                    <p className="text-xs font-medium" style={{ color: 'var(--af-txt)' }}>
+                      {paymentTxId ? 'Dataset package ready' : 'Awaiting payment confirmation'}
+                    </p>
+                    {paymentTxId && (
+                      <p className="text-[10px]" style={{ color: 'var(--af-muted)' }}>
+                        Audio + transcripts + translations packaged for download
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
             )}
+
+            {/* Transaction ID success display */}
             {paymentTxId && (
-              <p className="text-[10px] mb-2 break-all" style={{ color: 'var(--af-muted)' }}>
-                🔗 Tx: {paymentTxId}
-              </p>
+              <div
+                className="rounded-xl p-3 mb-3"
+                style={{ background: 'var(--af-search-bg)' }}
+              >
+                <p className="text-[10px] font-medium mb-1" style={{ color: 'var(--af-muted)' }}>
+                  🔗 Hedera Transaction ID
+                </p>
+                <p className="text-[10px] font-mono break-all" style={{ color: 'var(--af-txt)' }}>
+                  {paymentTxId}
+                </p>
+                <a
+                  href={`https://hashscan.io/${process.env.NEXT_PUBLIC_HEDERA_NETWORK ?? 'testnet'}/transaction/${paymentTxId}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-[10px] mt-1 inline-block"
+                  style={{ color: 'var(--af-primary)' }}
+                >
+                  View on HashScan ↗
+                </a>
+              </div>
             )}
+
             {paymentError && (
-              <p className="text-xs mb-2" style={{ color: 'var(--af-danger)' }}>
+              <p className="text-xs mb-2 p-2 rounded" style={{ color: 'var(--af-danger)', background: 'var(--af-surface)' }}>
                 {paymentError}
               </p>
             )}
@@ -565,7 +637,7 @@ export default function MarketplaceClient({
               href={`/marketplace/purchase/${purchaseResult.purchaseId}`}
               className="btn-primary text-xs block text-center"
             >
-              View & Download
+              {paymentTxId ? '⬇️ Download Dataset' : 'View Order Details'}
             </a>
           </div>
         )}

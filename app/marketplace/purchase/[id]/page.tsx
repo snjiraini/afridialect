@@ -128,12 +128,20 @@ export default async function PurchasePage({
                   </div>
                 )}
                 <div className="flex items-center gap-2">
-                  <span>📂</span>
-                  <span>Format: HuggingFace-compatible JSON (manifest + metadata)</span>
+                  <span>�</span>
+                  <span>Format: <strong style={{ color: 'var(--af-txt)' }}>ZIP</strong> (HuggingFace-compatible)</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <span>🔊</span>
-                  <span>Audio accessed via IPFS CIDs in manifest</span>
+                  <span>Audio files downloaded fresh from IPFS</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span>�</span>
+                  <span>Includes transcripts, English translations &amp; JSONL manifest</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span>🗑️</span>
+                  <span>Package auto-deleted from our servers after download</span>
                 </div>
               </div>
 

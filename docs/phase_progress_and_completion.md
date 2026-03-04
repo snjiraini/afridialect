@@ -1,7 +1,7 @@
 # Afridialect - Phase Progress and Completion
 
 **Project Start:** February 2026  
-**Last Updated:** February 24, 2026  
+**Last Updated:** March 4, 2026  
 **Version:** 1.0
 
 ---
@@ -1377,3 +1377,154 @@ The `audio_qc` reviewer is identified from `qc_reviews` rows with `review_type =
 ### Build Verification
 - ✅ All modified files — 0 TypeScript errors
 - ✅ No breaking changes to existing API contracts or UI
+
+---
+
+## Phase 11 Extension: Atomic Batch Purchase, AI/ML Dataset & Admin Payout Config
+
+**Status:** ✅ Complete — March 4, 2026
+**Branch:** `feature/AI-ML-dataset`
+
+### What Was Built
+
+Six features extending the marketplace purchase flow, implemented as additive changes with no breaking modifications to existing API contracts or UI:
+
+---
+
+### Feature 1 — NFT Supply Limit: 300 → 5
+
+`NFT_MAX_SUPPLY` constant in `lib/hedera/nft.ts` changed from `300` to `5`.
+
+- `createTokenCollection` defaults to `NFT_MAX_SUPPLY` (was hardcoded 300).
+- `mintSerials` defaults to `NFT_MAX_SUPPLY` (was hardcoded 300).
+- `mintNftSet` `count` parameter defaults to `NFT_MAX_SUPPLY`.
+- Applies to all future mints. Existing minted tokens are unaffected.
+
+---
+
+### Feature 2 — Atomic BatchTransaction (NFT Burn + HBAR Distribution)
+
+Replaced the sequential two-step NFT burn + HBAR payment approach with a single `BatchTransaction` (`@hashgraph/sdk` v2.80.0).
+
+**Why needed:** HTS NFTs held by contributor accounts cannot be burned directly — only the supply key (treasury) can burn. Contributors must return their NFTs to treasury first. Sequential transactions risk partial failure; `BatchTransaction` guarantees atomicity.
+
+**Inner transaction order:**
+
+| # | Type | Signers |
+|---|---|---|
+| 1…N | `TransferTransaction` — contributor(s) → treasury (NFT return, 1 per unique contributor) | Contributor KMS + Guardian KMS |
+| N+1…M | `TokenBurnTransaction` — treasury burns (1 per unique token collection) | Treasury supply key |
+| Last | `TransferTransaction` — buyer → all HBAR recipients (revenue distribution) | Buyer KMS + Guardian KMS |
+
+**Key implementation detail:** Each inner transaction must call `.setBatchKey(operatorPublicKey)` before `.freezeWith(client)`. The convenience `.batchify()` only works for operator-only signing; KMS-signed ThresholdKey accounts require manual `.signWith()` calls.
+
+**New types and function in `lib/hedera/nft.ts`:**
+- `NftBurnSlot` — `{ tokenId, serial, contributorAccountId, contributorKmsKeyId }`
+- `HbarRecipient` — mirrors `PayoutRecipient` (re-declared to avoid circular import)
+- `AtomicPurchaseBatchParams` — full input shape
+- `AtomicPurchaseBatchResult` — `{ batchTransactionId: string }`
+- `executeAtomicPurchaseBatch()` — exported async function
+
+**Removed:** `burnNftSerials()` (sequential, replaced by atomic batch).
+
+**Response change in `POST /api/marketplace/payment`:** added `nftsBurned: number` field.
+
+---
+
+### Feature 3 — Transaction Progress UI
+
+Updated `app/marketplace/components/MarketplaceClient.tsx`:
+- 3-step progress indicator shown during payment (purchase reserved → broadcasting → package ready).
+- Animated pulse on the active step.
+- Transaction ID displayed in a styled block with a **"View on HashScan ↗"** link after success.
+- Download button label updated: "⬇️ Download Dataset" when payment is complete, "View Order Details" while pending.
+
+---
+
+### Feature 4 — Admin-Configurable Payout Structure
+
+Removed all hardcoded payout USD constants from `purchase/route.ts`. Amounts are now loaded from the `payout_structure` database table at checkout time.
+
+**New files:**
+- `lib/supabase/migrations/phase11_payout_structure.sql` — creates `payout_structure` table, seeds PRD §6.6.3 defaults, adds RLS, adds schema columns
+- `app/api/admin/payout-structure/route.ts` — `GET` (read) and `PUT` (update, admin only) API
+- `app/admin/components/PayoutStructureClient.tsx` — interactive edit UI with live draft total
+
+**Modified files:**
+- `lib/hedera/payment.ts` — `PayoutStructure` interface, `DEFAULT_PAYOUT_STRUCTURE` constant, `buildClipRecipients` updated to accept `PayoutStructure` parameter
+- `app/api/marketplace/purchase/route.ts` — loads `payout_structure` from DB, falls back to defaults
+- `app/api/marketplace/payment/route.ts` — loads `payout_structure` from DB, passes to `buildClipRecipients`
+- `app/admin/settings/page.tsx` — added `PayoutStructureClient` section
+
+**Fallback:** If the `payout_structure` table is empty or the query fails, `DEFAULT_PAYOUT_STRUCTURE` (PRD §6.6.3 values) is used silently.
+
+---
+
+### Feature 5 — Post-Mint Staging Cleanup
+
+`POST /api/ipfs/cleanup` was extended to clean all three staging buckets:
+- `audio-staging/{path}`
+- `transcript-staging/{path}` (from `transcriptions.transcript_url`)
+- `translation-staging/{path}` (from `translations.translation_url`)
+
+New behaviour:
+- Checks `clip.staging_cleaned_at` — idempotent, returns success if already cleaned.
+- Sets `staging_cleaned_at` on `audio_clips`, `transcriptions`, `translations` rows.
+- Returns `removedPaths: string[]` (all removed paths, not just audio).
+- Guard: only runs if audio CID is verified pinned on Pinata.
+
+**New DB columns** (added by `phase11_payout_structure.sql`):
+- `audio_clips.staging_cleaned_at TIMESTAMPTZ`
+- `transcriptions.staging_cleaned_at TIMESTAMPTZ`
+- `translations.staging_cleaned_at TIMESTAMPTZ`
+
+---
+
+### Feature 6 — HuggingFace-Compatible AI/ML Dataset Package
+
+`GET /api/marketplace/download/[id]` was fully rewritten:
+
+**Old behaviour:** served a signed URL for a pre-existing JSON manifest in `dataset-exports`.
+**New behaviour:** builds a ZIP file on demand from IPFS-pinned files, serves a 24h signed URL, auto-deletes after first download.
+
+**ZIP contents:**
+- `README.md` — HuggingFace dataset card (YAML frontmatter + markdown, CC-BY-4.0 license, speaker statistics, citation block)
+- `data.jsonl` — one JSON record per clip (id, dialect, audio_file, audio_cid, transcript, translation, duration, gender, age, speaker_count)
+- `audio/<clip-id>.<dialect>.<ext>` — audio files fetched from Pinata IPFS gateway
+- `transcripts/<clip-id>.<dialect>.txt` — verbatim transcription text
+- `translations/<clip-id>.en.txt` — English translation text
+
+**Implementation notes:**
+- ZIP built using raw binary (no external dependency) — pure DEFLATE store format, correct CRC-32.
+- Audio content-type → extension mapping (wav, mp3, ogg, m4a, bin fallback).
+- Package uploaded to `dataset-exports` bucket, signed URL generated (24h TTL).
+- After response is sent, async `Promise.resolve().then()` deletes the ZIP from storage and sets `package_deleted_at`.
+- `download_count` incremented on every call; `downloaded_at` set on first call.
+
+**New DB columns** (added by `phase11_payout_structure.sql`):
+- `dataset_purchases.download_count INTEGER DEFAULT 0`
+- `dataset_purchases.package_deleted_at TIMESTAMPTZ`
+
+---
+
+### Key Files Created (Phase 11 Extension)
+
+```
+lib/hedera/nft.ts                                    MODIFIED — NFT_MAX_SUPPLY=5, executeAtomicPurchaseBatch, NftBurnSlot, HbarRecipient
+lib/hedera/payment.ts                                MODIFIED — PayoutStructure, DEFAULT_PAYOUT_STRUCTURE, buildClipRecipients(…, payouts)
+app/api/marketplace/payment/route.ts                 MODIFIED — atomic batch, NFT burn slots, payout structure loading, nft_burns insert
+app/api/marketplace/purchase/route.ts                MODIFIED — removed hardcoded USD constants, loads payout_structure from DB
+app/api/marketplace/download/[id]/route.ts           MODIFIED — full IPFS→ZIP→signed-URL flow, auto-delete, download tracking
+app/api/ipfs/cleanup/route.ts                        MODIFIED — cleans transcript + translation staging in addition to audio
+app/api/admin/payout-structure/route.ts              NEW — GET/PUT admin payout structure API
+app/admin/components/PayoutStructureClient.tsx        NEW — interactive payout editor UI
+app/admin/settings/page.tsx                          MODIFIED — added PayoutStructureClient section
+app/marketplace/components/MarketplaceClient.tsx      MODIFIED — transaction progress UI, HashScan link, updated button labels
+app/marketplace/purchase/[id]/page.tsx               MODIFIED — updated download info (ZIP format, IPFS, auto-delete note)
+lib/supabase/migrations/phase11_payout_structure.sql NEW — payout_structure table, nft_burns tracking, staging cleanup columns
+```
+
+### Build Verification
+- ✅ `npm run build` — 0 errors, all routes compiled (March 4, 2026)
+- ✅ `npx tsc --noEmit` — 0 type errors
+- ✅ No breaking changes to existing API contracts, UI layout, or component styles
