@@ -6,7 +6,7 @@
  * Design: matches af-card / container-modern / btn-primary system
  */
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import type { MarketplaceClip, DatasetFilter } from '@/types'
 import { PRICE_PER_SAMPLE_USD } from '@/types'
 
@@ -68,6 +68,40 @@ export default function MarketplaceClient({
     priceUSD: number
     priceHBAR: number
   } | null>(null)
+  // Payment (on-chain) state — set after purchase record is created
+  const [paymentLoading,    setPaymentLoading]    = useState(false)
+  const [paymentError,      setPaymentError]      = useState<string | null>(null)
+  const [paymentTxId,       setPaymentTxId]       = useState<string | null>(null)
+
+  // ── HBAR rate & buyer balance ────────────────────────────────────────
+  // Live rate from CoinGecko; falls back to 0.15 if unavailable
+  const [hbarRateUSD,     setHbarRateUSD]     = useState(0.15)
+  const [buyerBalanceHbar, setBuyerBalanceHbar] = useState<number | null>(null)
+  const [balanceLoading,   setBalanceLoading]   = useState(false)
+
+  // Fetch live HBAR rate + buyer balance once on mount
+  useEffect(() => {
+    // Live HBAR/USD rate
+    fetch('https://api.coingecko.com/api/v3/simple/price?ids=hedera-hashgraph&vs_currencies=usd')
+      .then(r => r.json())
+      .then(d => {
+        const rate = d?.['hedera-hashgraph']?.usd
+        if (typeof rate === 'number' && rate > 0) setHbarRateUSD(rate)
+      })
+      .catch(() => { /* keep fallback 0.15 */ })
+
+    // Buyer's Hedera account balance
+    if (hasBuyerRole) {
+      setBalanceLoading(true)
+      fetch('/api/hedera/balance')
+        .then(r => r.json())
+        .then(d => {
+          if (typeof d.hbar === 'number') setBuyerBalanceHbar(d.hbar)
+        })
+        .catch(() => { /* silent — balance display is best-effort */ })
+        .finally(() => setBalanceLoading(false))
+    }
+  }, [hasBuyerRole])
 
   // ── Browse handler ──────────────────────────────────────────────────
   const handleBrowse = useCallback(async () => {
@@ -120,12 +154,22 @@ export default function MarketplaceClient({
       return
     }
 
+    // ── Pre-flight: balance check ────────────────────────────────────
+    const cartTotalUSD  = cart.length * PRICE_PER_SAMPLE_USD
+    const cartTotalHbar = hbarRateUSD > 0 ? cartTotalUSD / hbarRateUSD : 0
+    if (buyerBalanceHbar !== null && buyerBalanceHbar < cartTotalHbar) {
+      setCheckoutError(
+        `Insufficient HBAR balance. You need ≈ℏ${cartTotalHbar.toFixed(2)} but your account only has ℏ${buyerBalanceHbar.toFixed(2)}. ` +
+        `Please top up your Hedera account before purchasing.`
+      )
+      return
+    }
+
     setCheckoutLoading(true)
     setCheckoutError(null)
+    setPaymentError(null)
+    setPaymentTxId(null)
     try {
-      // Use a placeholder HBAR rate of 0.15 USD/HBAR (in production, fetch live rate)
-      const hbarRateUSD = 0.15
-
       const filters: DatasetFilter = {
         dialects:      selectedDialects.length > 0 ? selectedDialects : undefined,
         speakerGender: selectedGenders.length  > 0 ? selectedGenders  : undefined,
@@ -135,6 +179,7 @@ export default function MarketplaceClient({
         speakerCount:  speakerCount ? parseInt(speakerCount)   : undefined,
       }
 
+      // Step 1: Create purchase record (payment_status = 'pending')
       const res = await fetch('/api/marketplace/purchase', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -143,19 +188,45 @@ export default function MarketplaceClient({
       const data = await res.json()
       if (!res.ok || !data.success) {
         setCheckoutError(data.error ?? 'Checkout failed')
+        return
+      }
+
+      const result = {
+        purchaseId:  data.purchaseId,
+        sampleCount: data.sampleCount,
+        priceUSD:    data.priceUSD,
+        priceHBAR:   data.priceHBAR,
+      }
+      setPurchaseResult(result)
+      setCart([])
+      setCheckoutLoading(false)
+
+      // Step 2: Execute on-chain HBAR payment (single atomic Hedera tx)
+      setPaymentLoading(true)
+      const payRes = await fetch('/api/marketplace/payment', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ purchaseId: data.purchaseId }),
+      })
+      const payData = await payRes.json()
+      if (!payRes.ok || !payData.success) {
+        setPaymentError(friendlyPaymentError(payData.error))
+        // Refresh balance after a failed attempt so the UI stays accurate
+        fetch('/api/hedera/balance').then(r => r.json()).then(d => {
+          if (typeof d.hbar === 'number') setBuyerBalanceHbar(d.hbar)
+        }).catch(() => {})
       } else {
-        setPurchaseResult({
-          purchaseId:  data.purchaseId,
-          sampleCount: data.sampleCount,
-          priceUSD:    data.priceUSD,
-          priceHBAR:   data.priceHBAR,
-        })
-        setCart([])
+        setPaymentTxId(payData.transactionId ?? null)
+        // Refresh balance to reflect the deduction
+        fetch('/api/hedera/balance').then(r => r.json()).then(d => {
+          if (typeof d.hbar === 'number') setBuyerBalanceHbar(d.hbar)
+        }).catch(() => {})
       }
     } catch (err) {
       setCheckoutError(err instanceof Error ? err.message : 'Network error')
     } finally {
       setCheckoutLoading(false)
+      setPaymentLoading(false)
     }
   }
 
@@ -167,6 +238,28 @@ export default function MarketplaceClient({
   ) => {
     if (state.includes(value)) setState(state.filter((v) => v !== value))
     else setState([...state, value])
+  }
+
+  // ── Maps raw Hedera/server error strings to buyer-friendly messages ──
+  const friendlyPaymentError = (raw: string | undefined): string => {
+    if (!raw) return 'On-chain payment failed. Your purchase record is saved — contact support.'
+    const r = raw.toUpperCase()
+    if (r.includes('INSUFFICIENT_ACCOUNT_BALANCE') || r.includes('INSUFFICIENT_PAYER_BALANCE')) {
+      const need = hbarRateUSD > 0
+        ? ` You need ≈ℏ${(purchaseResult ? purchaseResult.priceHBAR : 0).toFixed(2)}.`
+        : ''
+      return `Your HBAR balance is too low to complete this payment.${need} Please top up your Hedera account.`
+    }
+    if (r.includes('INVALID_SIGNATURE')) {
+      return 'Payment authorisation failed. This is a technical issue — your account has NOT been charged. Please contact support.'
+    }
+    if (r.includes('ACCOUNT_NOT_FOUND') || r.includes('INVALID_ACCOUNT_ID')) {
+      return 'Your Hedera account could not be found. Please contact support.'
+    }
+    if (r.includes('TRANSACTION_EXPIRED')) {
+      return 'The payment timed out. Please try again.'
+    }
+    return 'On-chain payment could not be processed. Your account has not been charged. Contact support if this persists.'
   }
 
   const cartTotal = parseFloat((cart.length * PRICE_PER_SAMPLE_USD).toFixed(2))
@@ -379,7 +472,7 @@ export default function MarketplaceClient({
             <div className="flex items-center justify-between">
               <p className="text-xs" style={{ color: 'var(--af-muted)' }}>
                 Showing <strong style={{ color: 'var(--af-txt)' }}>{clips.length}</strong> of{' '}
-                <strong style={{ color: 'var(--af-txt)' }}>{total}</strong> clips — each $5.00 USD
+                <strong style={{ color: 'var(--af-txt)' }}>{total}</strong> clips — each $6.00 USD
               </p>
             </div>
 
@@ -405,7 +498,7 @@ export default function MarketplaceClient({
                         className="text-xs px-2 py-0.5 rounded-full flex-shrink-0"
                         style={{ background: 'var(--af-surface)', color: 'var(--af-primary)', fontWeight: 600 }}
                       >
-                        $5.00
+                        $6.00
                       </span>
                     </div>
 
@@ -442,14 +535,32 @@ export default function MarketplaceClient({
         {purchaseResult && (
           <div
             className="af-card p-5"
-            style={{ borderLeft: '4px solid var(--af-success)' }}
+            style={{ borderLeft: `4px solid ${paymentTxId ? 'var(--af-success)' : paymentError ? 'var(--af-danger)' : 'var(--af-warning)'}` }}
           >
             <p className="text-sm font-semibold mb-1" style={{ color: 'var(--af-txt)' }}>
-              ✅ Purchase Complete
+              {paymentTxId ? '✅ Payment Complete' : paymentLoading ? '⏳ Processing Payment…' : paymentError ? '⚠️ Payment Issue' : '🛒 Order Created'}
             </p>
-            <p className="text-xs mb-3" style={{ color: 'var(--af-muted)' }}>
-              {purchaseResult.sampleCount} samples · ${purchaseResult.priceUSD.toFixed(2)} USD
+            <p className="text-xs mb-2" style={{ color: 'var(--af-muted)' }}>
+              {purchaseResult.sampleCount} samples · ${purchaseResult.priceUSD.toFixed(2)} USD · ℏ{purchaseResult.priceHBAR.toFixed(4)}
             </p>
+
+            {/* On-chain payment status */}
+            {paymentLoading && (
+              <p className="text-xs mb-2 animate-pulse" style={{ color: 'var(--af-primary)' }}>
+                Sending HBAR to contributors on Hedera…
+              </p>
+            )}
+            {paymentTxId && (
+              <p className="text-[10px] mb-2 break-all" style={{ color: 'var(--af-muted)' }}>
+                🔗 Tx: {paymentTxId}
+              </p>
+            )}
+            {paymentError && (
+              <p className="text-xs mb-2" style={{ color: 'var(--af-danger)' }}>
+                {paymentError}
+              </p>
+            )}
+
             <a
               href={`/marketplace/purchase/${purchaseResult.purchaseId}`}
               className="btn-primary text-xs block text-center"
@@ -460,6 +571,30 @@ export default function MarketplaceClient({
         )}
 
         <div className="af-card p-5">
+          {/* ── Buyer balance ─────────────────────────────────────── */}
+          {hasBuyerRole && (
+            <div
+              className="mb-4 pb-4"
+              style={{ borderBottom: '1px solid var(--af-line)' }}
+            >
+              <p className="text-[11px] font-medium uppercase tracking-wide mb-1" style={{ color: 'var(--af-muted)' }}>
+                Your HBAR Balance
+              </p>
+              {balanceLoading ? (
+                <p className="text-xs animate-pulse" style={{ color: 'var(--af-muted)' }}>Fetching balance…</p>
+              ) : buyerBalanceHbar !== null ? (
+                <p className="text-sm font-semibold" style={{ color: 'var(--af-txt)' }}>
+                  ℏ{buyerBalanceHbar.toFixed(2)}
+                  <span className="text-xs font-normal ml-2" style={{ color: 'var(--af-muted)' }}>
+                    (≈${(buyerBalanceHbar * hbarRateUSD).toFixed(2)} USD)
+                  </span>
+                </p>
+              ) : (
+                <p className="text-xs" style={{ color: 'var(--af-muted)' }}>Balance unavailable</p>
+              )}
+            </div>
+          )}
+
           <div className="flex items-center justify-between mb-4">
             <h2 className="font-semibold text-sm" style={{ color: 'var(--af-txt)' }}>
               🛒 Cart ({cart.length})
@@ -496,7 +631,7 @@ export default function MarketplaceClient({
                       </p>
                     </div>
                     <div className="flex items-center gap-2 flex-shrink-0">
-                      <span style={{ color: 'var(--af-primary)' }}>$5.00</span>
+                      <span style={{ color: 'var(--af-primary)' }}>$6.00</span>
                       <button
                         type="button"
                         onClick={(e) => { e.stopPropagation(); toggleCart(clip) }}
@@ -517,9 +652,14 @@ export default function MarketplaceClient({
                     ${cartTotal.toFixed(2)} USD
                   </span>
                 </div>
-                <p className="text-[11px] mt-1" style={{ color: 'var(--af-muted)' }}>
-                  {cart.length} sample{cart.length !== 1 ? 's' : ''} × $5.00 each
+                <p className="text-[11px] mt-0.5" style={{ color: 'var(--af-muted)' }}>
+                  {cart.length} sample{cart.length !== 1 ? 's' : ''} × $6.00 each
                 </p>
+                {hbarRateUSD > 0 && (
+                  <p className="text-[11px] mt-0.5" style={{ color: 'var(--af-muted)' }}>
+                    ≈ℏ{(cartTotal / hbarRateUSD).toFixed(2)} at ${hbarRateUSD.toFixed(4)}/HBAR
+                  </p>
+                )}
               </div>
 
               {!hasBuyerRole && (
@@ -531,8 +671,19 @@ export default function MarketplaceClient({
                 </div>
               )}
 
+              {/* Inline low-balance warning (before checkout is attempted) */}
+              {hasBuyerRole && buyerBalanceHbar !== null && hbarRateUSD > 0 &&
+               buyerBalanceHbar < (cartTotal / hbarRateUSD) && !checkoutError && (
+                <div
+                  className="text-xs p-2 rounded mb-3"
+                  style={{ background: 'var(--af-surface)', color: 'var(--af-warning)', borderLeft: '3px solid var(--af-warning)' }}
+                >
+                  ⚠️ Your balance (ℏ{buyerBalanceHbar.toFixed(2)}) may be too low for this purchase (≈ℏ{(cartTotal / hbarRateUSD).toFixed(2)} needed).
+                </div>
+              )}
+
               {checkoutError && (
-                <div className="text-xs p-2 rounded mb-3" style={{ color: 'var(--af-danger)', background: 'var(--af-surface)' }}>
+                <div className="text-xs p-2 rounded mb-3" style={{ color: 'var(--af-danger)', background: 'var(--af-surface)', borderLeft: '3px solid var(--af-danger)' }}>
                   {checkoutError}
                 </div>
               )}
@@ -540,7 +691,10 @@ export default function MarketplaceClient({
               <button
                 type="button"
                 onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleCheckout() }}
-                disabled={checkoutLoading || !hasBuyerRole}
+                disabled={
+                  checkoutLoading || !hasBuyerRole ||
+                  (buyerBalanceHbar !== null && hbarRateUSD > 0 && buyerBalanceHbar < (cartTotal / hbarRateUSD))
+                }
                 className="btn-primary w-full text-sm"
               >
                 {checkoutLoading ? 'Processing…' : `Checkout — $${cartTotal.toFixed(2)}`}
@@ -561,6 +715,7 @@ export default function MarketplaceClient({
           <div className="space-y-1.5">
             {([
               ['Audio recording', '$0.50'],
+              ['Audio QC',        '$1.00'],
               ['Transcription',   '$1.00'],
               ['Translation',     '$1.00'],
               ['Transcript QC',   '$1.00'],
@@ -577,7 +732,7 @@ export default function MarketplaceClient({
               style={{ borderColor: 'var(--af-line)', color: 'var(--af-txt)' }}
             >
               <span>Total</span>
-              <span style={{ color: 'var(--af-primary)' }}>$5.00</span>
+              <span style={{ color: 'var(--af-primary)' }}>$6.00</span>
             </div>
           </div>
         </div>

@@ -244,8 +244,8 @@ export interface DatasetFilter {
   speakerCount?: number     // exact speaker count filter
 }
 
-/** PRD §6.6.3: $5.00 per sample bundle */
-export const PRICE_PER_SAMPLE_USD = 5.00
+/** PRD §6.6.3 updated: $6.00 per sample bundle (includes audio QC reviewer at $1.00) */
+export const PRICE_PER_SAMPLE_USD = 6.00
 
 /** A sellable clip returned by the browse API */
 export interface MarketplaceClip {
@@ -278,6 +278,8 @@ export interface PurchaseResponse {
   priceUSD?: number
   priceHBAR?: number
   hbarRate?: number
+  /** True when the purchase record is created but on-chain payment is still pending */
+  paymentRequired?: boolean
   error?: string
 }
 

@@ -1327,3 +1327,53 @@ lib/supabase/migrations/phase10_analytics.sql
 
 ### SQL to Run in Supabase Dashboard
 Run `lib/supabase/migrations/phase10_analytics.sql` — creates `system_config` table, RLS policy, and analytics indexes. All statements are idempotent.
+
+---
+
+## Phase 11: Hedera Contributor Payments
+
+**Status:** ✅ Complete — March 4, 2026  
+**Branch:** `feature/hedera-contributor-payments`
+
+### What Was Built
+
+Single atomic on-chain HBAR payment system that distributes funds from the buyer to every contributor in one Hedera `TransferTransaction` after a dataset purchase.
+
+### Payout Breakdown (per sample, $6.00 USD total)
+
+| Contributor | USD | Notes |
+|---|---|---|
+| Audio uploader | $0.50 | Clip owner |
+| **Audio QC reviewer** | **$1.00** | **Added March 4, 2026** — reviewer who approves audio at Step 1 of QC pipeline |
+| Transcriber | $1.00 | Native speaker annotator |
+| Translator | $1.00 | English translator |
+| Transcript QC reviewer | $1.00 | Step 3 QC |
+| Translation QC reviewer | $1.00 | Step 5 QC |
+| Platform markup | $0.50 | Sent to treasury |
+| **Total** | **$6.00** | |
+
+`PRICE_PER_SAMPLE_USD` updated from `$5.00` → `$6.00` in `types/index.ts`.
+
+### Key Files Created / Modified
+
+```
+lib/hedera/payment.ts                            NEW — ClipContributors interface, buildClipRecipients, aggregateRecipients, executePurchasePayment
+app/api/marketplace/payment/route.ts             NEW — POST /api/marketplace/payment (executes Hedera tx)
+lib/supabase/migrations/phase10_payment.sql      NEW — DB schema additions for payment tracking
+types/index.ts                                   MODIFIED — PRICE_PER_SAMPLE_USD = 6.00, paymentRequired on PurchaseResponse
+app/api/marketplace/purchase/route.ts            MODIFIED — fetches qc_reviews, inserts audio QC payout record, keeps payment_status = 'pending'
+app/marketplace/components/MarketplaceClient.tsx MODIFIED — two-step checkout (purchase then payment), updated $6.00 display, Audio QC row in breakdown
+app/admin/components/PricingConfigClient.tsx     MODIFIED — updated $5.00 → $6.00 display strings
+```
+
+### Architecture: Single Atomic Transaction
+
+The Hedera `TransferTransaction` is multi-transfer: one debit from the buyer, N credits to recipients. On Hedera, this is fully atomic — either all transfers commit or all revert. Recipients with the same account are aggregated before submission (≤50 account changes per tx limit).
+
+### Audio QC Reviewer Payout (change detail)
+
+The `audio_qc` reviewer is identified from `qc_reviews` rows with `review_type = 'audio_qc'` for each clip. Their payout uses `payout_type = 'qc_review'` (same bucket as transcript/translation QC reviewers). The `ClipContributors` interface in `lib/hedera/payment.ts` now includes `audioQcReviewerHederaAccountId`.
+
+### Build Verification
+- ✅ All modified files — 0 TypeScript errors
+- ✅ No breaking changes to existing API contracts or UI

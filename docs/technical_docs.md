@@ -550,6 +550,217 @@ curl -X POST http://localhost:3000/api/hedera/create-account \
   -H "Cookie: sb-access-token=YOUR_TOKEN"
 ```
 
+### KMS Transaction Signing (`signForHedera`)
+
+Hedera's `TransferTransaction` debits the buyer's account, which is protected by a ThresholdKey (2-of-2). Both keys must sign before `execute()` is called. Because both keys live in AWS KMS (never in memory), signing uses a custom signer passed to the SDK's `signWith()` callback.
+
+#### Why the signer works this way
+
+The Hedera SDK's `signWith(publicKey, signerFn)` passes raw **protobuf `bodyBytes`** to `signerFn` and expects a **raw 64-byte r‖s signature** back. AWS KMS returns DER-encoded signatures. These two facts drive the three-step process below.
+
+#### Key setup
+
+```typescript
+const kmsClient = new KMSClient({
+  credentials: {
+    accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
+    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
+  },
+  region: process.env.AWS_REGION || 'us-east-1',
+})
+```
+
+#### The signer (`signForHedera` in `lib/aws/kms.ts`)
+
+```typescript
+const signer = async (message: Uint8Array): Promise<Uint8Array> => {
+  // 1. Send raw transaction bytes to KMS — KMS applies SHA-256 internally
+  //    before signing with ECDSA_SHA_256 (MessageType:'RAW')
+  const { Signature } = await kmsClient.send(new SignCommand({
+    KeyId: keyId,
+    Message: message,
+    MessageType: 'RAW',          // KMS hashes with SHA-256 internally
+    SigningAlgorithm: 'ECDSA_SHA_256',
+  }))
+
+  // 2. DER-decode the signature → raw 64-byte r‖s
+  //    DER structure: 0x30 [len] 0x02 [rLen] [r] 0x02 [sLen] [s]
+  //    DER may zero-pad r or s to 33 bytes when the high bit is set.
+  //    We right-align each component into a fixed 32-byte slot.
+  const der = Buffer.from(Signature!)
+  // ... (parse offset, rLen, sLen, right-align into Uint8Array(64))
+
+  return result  // 64 bytes: r (32) || s (32)
+}
+```
+
+#### Attaching both ThresholdKey signatures
+
+```typescript
+// Freeze first — required before any signWith calls
+transferTx.freezeWith(client)
+
+// Key 1: buyer's KMS key
+const buyerPub = PublicKey.fromBytes(await getPublicKey(buyerKmsKeyId))
+await transferTx.signWith(buyerPub, (msg) => signForHedera(buyerKmsKeyId, msg))
+
+// Key 2: platform guardian KMS key
+const guardianPub = PublicKey.fromBytes(await getPublicKey(guardianKmsKeyId))
+await transferTx.signWith(guardianPub, (msg) => signForHedera(guardianKmsKeyId, msg))
+
+// execute() adds the operator fee-payer signature (HEDERA_OPERATOR_PRIVATE_KEY)
+// — this is separate from the ThresholdKey and does NOT replace Key 2 above
+const result = await transferTx.execute(client)
+```
+
+#### Critical notes
+
+| Point | Detail |
+|---|---|
+| Key spec | `ECC_SECG_P256K1` (secp256k1) — required for Hedera ECDSA accounts |
+| `MessageType` | `'RAW'` — KMS SHA-256 hashes internally, matching what Hedera SDK verifies |
+| DER decode | r and s right-aligned into 32-byte slots; handles 33-byte zero-padded values |
+| Two `signWith` calls | One per KMS key in the ThresholdKey — both required before `execute()` |
+| Operator ≠ Guardian | `HEDERA_OPERATOR_PRIVATE_KEY` pays network fees only; it is NOT Key 2 of the ThresholdKey |
+
+#### Reference implementation (working KMS + Hedera integration)
+
+This is the canonical reference for how KMS signing, public key extraction, and Hedera transaction signing fit together. Key points that differ from naive approaches:
+
+- **`keccak256`** is used to hash the message before sending to KMS as `DIGEST` (not SHA-256)
+- **`elliptic`** is used to strip the ASN.1 DER prefix from the KMS public key before passing it to Hedera
+- **`PublicKey.fromBytesECDSA`** is used with the compressed point (not `PublicKey.fromBytes` with the full DER blob)
+- **`asn1.js`** decodes the DER signature — `decoded.r.toArray("be", 32)` correctly right-pads to 32 bytes regardless of leading zeros
+
+```javascript
+const { KMSClient, SignCommand, GetPublicKeyCommand } = require("@aws-sdk/client-kms");
+const {
+  Client,
+  Hbar,
+  AccountCreateTransaction,
+  PublicKey,
+  AccountBalanceQuery,
+  TransferTransaction,
+} = require("@hashgraph/sdk");
+const elliptic = require("elliptic");
+const keccak256 = require("keccak256");
+const asn1 = require("asn1.js");
+require("dotenv").config();
+
+// Initialize KMS client
+const kmsClient = new KMSClient({
+  credentials: {
+    accessKeyId: process.env.AWS_KMS_ACCESS_KEY_ID,
+    secretAccessKey: process.env.AWS_KMS_SECRET_ACCESS_KEY,
+  },
+  region: process.env.AWS_KMS_REGION,
+});
+
+// ASN.1 parser for ECDSA signatures (KMS returns DER-encoded signatures)
+const EcdsaSigAsnParse = asn1.define("EcdsaSig", function () {
+  this.seq().obj(this.key("r").int(), this.key("s").int());
+});
+
+/**
+ * Creates a KMS signer with its associated public key.
+ *
+ * Steps:
+ * 1. Fetch DER-encoded public key from KMS
+ * 2. Strip the ASN.1 prefix (fixed 26-byte header for secp256k1 SubjectPublicKeyInfo)
+ * 3. Compress the uncompressed EC point using elliptic
+ * 4. Load into Hedera as PublicKey.fromBytesECDSA (compressed, 33 bytes)
+ * 5. Build signer: keccak256(message) → KMS Sign (DIGEST) → asn1 decode → r‖s
+ */
+async function createKmsSigner(keyId) {
+  // Get public key from KMS (DER-encoded SubjectPublicKeyInfo)
+  const response = await kmsClient.send(new GetPublicKeyCommand({ KeyId: keyId }));
+
+  // Strip the fixed ASN.1 prefix for ECC_SECG_P256K1 keys to get the raw 65-byte uncompressed point
+  const ec = new elliptic.ec("secp256k1");
+  let hexKey = Buffer.from(response.PublicKey).toString("hex");
+  hexKey = hexKey.replace("3056301006072a8648ce3d020106052b8104000a034200", "");
+
+  // Compress the public key (65 bytes uncompressed → 33 bytes compressed)
+  const ecKey = ec.keyFromPublic(hexKey, "hex");
+  const publicKey = PublicKey.fromBytesECDSA(
+    Buffer.from(ecKey.getPublic().encodeCompressed("hex"), "hex")
+  );
+
+  // Signer function — called by Hedera SDK's signWith() for each transaction body
+  const signer = async (message) => {
+    // Hedera ECDSA accounts expect keccak256, not SHA-256
+    const hash = keccak256(Buffer.from(message));
+
+    const signResponse = await kmsClient.send(
+      new SignCommand({
+        KeyId: keyId,
+        Message: hash,
+        MessageType: "DIGEST",      // hash already computed — KMS signs directly
+        SigningAlgorithm: "ECDSA_SHA_256",
+      })
+    );
+
+    // Decode DER signature; toArray("be", 32) right-aligns to exactly 32 bytes
+    const decoded = EcdsaSigAsnParse.decode(Buffer.from(signResponse.Signature), "der");
+    const signature = new Uint8Array(64);
+    signature.set(decoded.r.toArray("be", 32), 0);   // r at bytes 0–31
+    signature.set(decoded.s.toArray("be", 32), 32);  // s at bytes 32–63
+
+    return signature;
+  };
+
+  return { publicKey, signer };
+}
+
+async function main() {
+  const { publicKey, signer } = await createKmsSigner(process.env.AWS_KMS_KEY_ID);
+  console.log("KMS Public Key:", publicKey.toStringRaw());
+
+  // Operator client — pays for account creation (treasury key, not KMS)
+  const operatorClient = Client.forTestnet();
+  operatorClient.setOperator(process.env.HEDERA_ACCOUNT_ID, process.env.HEDERA_PRIVATE_KEY);
+
+  // Create new account with KMS public key as the sole account key
+  const createTx = await new AccountCreateTransaction()
+    .setKey(publicKey)
+    .setInitialBalance(Hbar.fromTinybars(200000))
+    .execute(operatorClient);
+
+  const receipt = await createTx.getReceipt(operatorClient);
+  const newAccountId = receipt.accountId;
+  console.log("New account ID:", newAccountId.toString());
+
+  const balance = await new AccountBalanceQuery()
+    .setAccountId(newAccountId)
+    .execute(operatorClient);
+  console.log("Account balance:", balance.hbars.toString());
+
+  // setOperatorWith — KMS signer signs ALL transactions from this client automatically
+  const kmsSignedClient = Client.forTestnet();
+  kmsSignedClient.setOperatorWith(newAccountId, publicKey, signer);
+
+  // Transfer HBAR — signed by KMS key automatically via setOperatorWith
+  const transferTx = await new TransferTransaction()
+    .addHbarTransfer(newAccountId, Hbar.fromTinybars(-10000))
+    .addHbarTransfer("0.0.3", Hbar.fromTinybars(10000))
+    .execute(kmsSignedClient);
+
+  const transferReceipt = await transferTx.getReceipt(kmsSignedClient);
+  console.log("Transfer status:", transferReceipt.status.toString());
+
+  const txId = transferTx.transactionId
+    .toString()
+    .replace("@", "-")
+    .replace(/\./g, "-")
+    .replace(/0-/g, "0.");
+  console.log("HashScan: https://hashscan.io/testnet/transaction/" + txId);
+}
+
+main().catch(console.error);
+```
+
+> **Note for Afridialect implementation:** We use `signWith()` (not `setOperatorWith()`) because the buyer's account has a ThresholdKey (2-of-2) requiring two separate KMS signers. The hash function must be **`keccak256`** — not SHA-256 — for Hedera ECDSA account key verification. Update `signForHedera` in `lib/aws/kms.ts` accordingly.
+
 ---
 
 ## 6. Proxy Configuration
@@ -961,3 +1172,54 @@ If you see `http://localhost:3000/auth/login?email=...&password=...`, this is NO
 **For questions or support:**
 - GitHub Issues: https://github.com/snjiraini/afridialect/issues
 - Email: support@afridialect.ai
+
+---
+
+## Hedera Contributor Payment System
+
+### Overview
+
+Implemented in `feature/hedera-contributor-payments`. After a dataset purchase is created, a single atomic Hedera `TransferTransaction` distributes HBAR from the buyer's account to every contributor and the platform treasury in one network commit.
+
+### Payout Breakdown (per sample, $6.00 USD total)
+
+| Contributor | Amount (USD) | Payout type |
+|---|---|---|
+| Audio uploader | $0.50 | `audio` |
+| Audio QC reviewer | $1.00 | `qc_review` |
+| Transcriber | $1.00 | `transcription` |
+| Translator | $1.00 | `translation` |
+| Transcript QC reviewer | $1.00 | `qc_review` |
+| Translation QC reviewer | $1.00 | `qc_review` |
+| Platform (treasury) | $0.50 | — (no payout row) |
+| **Total** | **$6.00** | |
+
+> **Audio QC reviewer** was added (March 4, 2026) to pay the reviewer who approves audio clips during Step 1 of the QC pipeline (PRD §4.3 Step 1). `PRICE_PER_SAMPLE_USD` updated from `$5.00` to `$6.00`.
+
+### Key Files
+
+```
+lib/hedera/payment.ts                       — Core payment service (ClipContributors, buildClipRecipients, executePurchasePayment)
+app/api/marketplace/payment/route.ts        — POST /api/marketplace/payment endpoint
+app/api/marketplace/purchase/route.ts       — POST /api/marketplace/purchase (creates payout records)
+lib/supabase/migrations/phase10_payment.sql — DB migration (payment_transaction_id, indexes)
+```
+
+### Two-Step Purchase Flow
+
+1. **POST `/api/marketplace/purchase`** — validates clips, creates `dataset_purchases` record (`payment_status = 'pending'`), inserts payout rows, builds dataset export.
+2. **POST `/api/marketplace/payment`** — executes single Hedera `TransferTransaction` (buyer → all contributors + treasury atomically), updates all payout rows to `completed`, sets `payment_transaction_id` on the purchase.
+
+### Buyer Signing (ThresholdKey 2-of-2)
+
+The buyer's Hedera account uses ThresholdKey (2-of-2):
+- **Buyer KMS key** — signed via `signWithKMS()` using `transferTx.signWith()`
+- **Platform guardian key** — signed automatically by `client.execute()` (operator = platform guardian)
+
+### Missing Contributor Fallback
+
+If a contributor has no Hedera account set up (`hedera_account_id = null`), their payout slot falls back to the platform treasury — funds are never lost on-chain.
+
+### Database Migration
+
+Run `lib/supabase/migrations/phase10_payment.sql` in Supabase Dashboard → SQL Editor. Adds `payment_transaction_id` and `hashscan_url` to `dataset_purchases`, and `transaction_id` + `processed_at` to `payouts`.

@@ -21,6 +21,7 @@ import {
   TokenType,
   TokenSupplyType,
   TokenMintTransaction,
+  TokenBurnTransaction,
   TransferTransaction,
   TokenAssociateTransaction,
   AccountId,
@@ -30,6 +31,7 @@ import {
   CustomRoyaltyFee,
   CustomFixedFee,
   NftId,
+  Long,
 } from '@hashgraph/sdk'
 import { getHederaClient, getTreasuryAccountId, getTreasuryPrivateKey } from './client'
 
@@ -186,6 +188,47 @@ async function transferNftsToContributor(
     }
 
     return lastTxId
+  } finally {
+    await client.close()
+  }
+}
+
+/**
+ * Burn a specific set of NFT serials from a token.
+ *
+ * Per PRD §6: when a buyer purchases a dataset package, one NFT serial is burned
+ * from each of the three clip component collections (audio, transcript, translation).
+ * This represents the contributor "selling" that serial — the HBAR they receive is
+ * the sale proceeds. QC reviewers have no NFT records and are NOT burned here.
+ *
+ * Only the treasury (supply key holder) can burn. No contributor signature needed.
+ *
+ * @param tokenId  Hedera token ID (e.g. "0.0.123456")
+ * @param serials  Array of serial numbers to burn
+ * @returns        Hedera transaction ID of the burn transaction
+ */
+export async function burnNftSerials(
+  tokenId: string,
+  serials: number[]
+): Promise<string> {
+  if (serials.length === 0) throw new Error('burnNftSerials: serials array is empty')
+
+  const client = getHederaClient()
+  const treasuryKey = getTreasuryPrivateKey()
+
+  try {
+    const burnTx = new TokenBurnTransaction()
+      .setTokenId(TokenId.fromString(tokenId))
+      .setSerials(serials.map((s) => Long.fromNumber(s)))
+      .setMaxTransactionFee(new Hbar(10))
+      .freezeWith(client)
+
+    const signedBurn = await burnTx.sign(treasuryKey)
+    const burnResult = await signedBurn.execute(client)
+    await burnResult.getReceipt(client) // confirm success
+
+    console.log(`[nft] Burned serials ${serials.join(',')} from token ${tokenId}: ${burnResult.transactionId}`)
+    return burnResult.transactionId.toString()
   } finally {
     await client.close()
   }

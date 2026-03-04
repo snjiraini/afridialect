@@ -13,6 +13,10 @@ import {
   ScheduleKeyDeletionCommand,
   type MessageType,
 } from '@aws-sdk/client-kms'
+import { ec as EC } from 'elliptic'
+import { keccak_256 } from '@noble/hashes/sha3'
+
+const secp256k1 = new EC('secp256k1')
 
 // Initialize KMS client
 const kmsClient = new KMSClient({
@@ -149,6 +153,99 @@ export async function signWithKMS(
     console.error('Error signing with KMS:', error)
     throw new Error(`Failed to sign with KMS: ${error instanceof Error ? error.message : 'Unknown error'}`)
   }
+}
+
+/**
+ * Extract a Hedera-compatible ECDSA PublicKey from a KMS key.
+ *
+ * KMS returns a DER-encoded SubjectPublicKeyInfo blob. We must:
+ *  1. Strip the fixed 26-byte ASN.1 header for secp256k1 keys to get the
+ *     raw 65-byte uncompressed point (04 || x || y).
+ *  2. Compress it to 33 bytes using elliptic.
+ *  3. Pass the compressed bytes to PublicKey.fromBytesECDSA — NOT fromBytes,
+ *     which fails to derive the correct Hedera key from the DER blob.
+ *
+ * @param keyId  AWS KMS key ID
+ * @returns      Hedera SDK PublicKey (ECDSA secp256k1, compressed)
+ */
+export async function getHederaPublicKeyFromKMS(keyId: string): Promise<import('@hashgraph/sdk').PublicKey> {
+  const { PublicKey } = await import('@hashgraph/sdk')
+
+  const response = await kmsClient.send(new GetPublicKeyCommand({ KeyId: keyId }))
+  if (!response.PublicKey) throw new Error(`KMS returned no public key for ${keyId}`)
+
+  // The DER SubjectPublicKeyInfo for secp256k1 has a fixed 26-byte ASN.1 header.
+  // After stripping it we get the raw 65-byte uncompressed EC point: 04 || x(32) || y(32)
+  const derHex = Buffer.from(response.PublicKey).toString('hex')
+  // Known prefix for ECC_SECG_P256K1 SubjectPublicKeyInfo
+  const ASN1_PREFIX = '3056301006072a8648ce3d020106052b8104000a034200'
+  const rawHex = derHex.replace(ASN1_PREFIX, '')
+
+  // Compress the point using elliptic (03/02 prefix + x only)
+  const ecKey = secp256k1.keyFromPublic(rawHex, 'hex')
+  const compressedHex = ecKey.getPublic().encodeCompressed('hex')
+  const compressedBytes = Buffer.from(compressedHex, 'hex')
+
+  return PublicKey.fromBytesECDSA(compressedBytes)
+}
+
+/**
+ * Sign a Hedera transaction body with a KMS key, returning the raw 64-byte
+ * r‖s signature that the Hedera SDK's `signWith` callback requires.
+ *
+ * Follows the canonical pattern from the reference implementation:
+ *  1. Hash the raw bodyBytes with keccak256 (required for Hedera ECDSA accounts)
+ *  2. Send the 32-byte digest to KMS with MessageType:'DIGEST'
+ *  3. DER-decode the returned signature using big-endian toArray(32) per component
+ *     so leading zeros are correctly preserved in both r and s.
+ *
+ * @param keyId   AWS KMS key ID
+ * @param message Raw transaction body bytes passed by the Hedera SDK signWith callback
+ * @returns       64-byte Uint8Array (r‖s) for the Hedera SDK
+ */
+export async function signForHedera(
+  keyId: string,
+  message: Uint8Array
+): Promise<Uint8Array> {
+  // Step 1: keccak256 hash — Hedera ECDSA accounts verify against keccak256(bodyBytes)
+  const hash = keccak_256(Buffer.from(message))
+
+  // Step 2: Sign the digest with KMS (MessageType:'DIGEST' = KMS skips its own hashing)
+  const { Signature } = await kmsClient.send(new SignCommand({
+    KeyId: keyId,
+    Message: hash,
+    MessageType: 'DIGEST',
+    SigningAlgorithm: 'ECDSA_SHA_256',
+  }))
+
+  if (!Signature) throw new Error('KMS returned no signature')
+
+  // Step 3: DER-decode → raw 64-byte r‖s
+  // Right-align r and s into 32-byte slots:
+  //   - strips DER's leading 0x00 padding byte (added when high bit is set)
+  //   - preserves short values by right-aligning into the slot
+  const derBuf = Buffer.from(Signature)
+  let offset = 0
+  if (derBuf[offset++] !== 0x30) throw new Error('Expected DER SEQUENCE')
+  if (derBuf[offset] & 0x80) offset += (derBuf[offset] & 0x7f) + 1
+  else offset++
+
+  if (derBuf[offset++] !== 0x02) throw new Error('Expected INTEGER tag for r')
+  const rLen = derBuf[offset++]
+  const rBytes = derBuf.slice(offset, offset + rLen)
+  offset += rLen
+
+  if (derBuf[offset++] !== 0x02) throw new Error('Expected INTEGER tag for s')
+  const sLen = derBuf[offset++]
+  const sBytes = derBuf.slice(offset, offset + sLen)
+
+  const result = new Uint8Array(64)
+  const rTrimmed = rBytes.slice(Math.max(0, rBytes.length - 32))
+  result.set(rTrimmed, 32 - rTrimmed.length)
+  const sTrimmed = sBytes.slice(Math.max(0, sBytes.length - 32))
+  result.set(sTrimmed, 64 - sTrimmed.length)
+
+  return result
 }
 
 /**

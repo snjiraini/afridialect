@@ -81,7 +81,7 @@ export default function PricingConfigClient({ initialRate }: Props) {
 
         <div className="af-card p-4 flex flex-col justify-center" style={{ background: 'var(--af-search-bg)' }}>
           <p className="text-xs font-medium mb-1" style={{ color: 'var(--af-muted)' }}>
-            Price per sample bundle ($5.00 USD)
+            Price per sample bundle ($6.00 USD)
           </p>
           <p className="text-2xl font-bold" style={{ color: 'var(--af-primary)' }}>
             {pricePerSampleHBAR} HBAR
@@ -112,9 +112,9 @@ export default function PricingConfigClient({ initialRate }: Props) {
         className="text-xs p-3 rounded-xl"
         style={{ background: 'var(--af-search-bg)', color: 'var(--af-muted)' }}
       >
-        ℹ️ This rate is used at checkout to convert the $5.00 USD per-sample price into HBAR.
+        ℹ️ This rate is used at checkout to convert the $6.00 USD per-sample price into HBAR.
         Update it when the market rate changes significantly.
-        The PRD specifies $5.00 per sample bundle (§6.6.3).
+        The PRD specifies $6.00 per sample bundle (audio QC reviewer added at $1.00).
       </p>
     </form>
   )

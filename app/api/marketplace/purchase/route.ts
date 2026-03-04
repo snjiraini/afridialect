@@ -23,6 +23,7 @@ import type { PurchaseRequest, PurchaseResponse } from '@/types'
 
 // Payout breakdown per PRD §6.6.3 — must sum to PRICE_PER_SAMPLE_USD
 const PAYOUT_AUDIO_USD         = 0.50
+const PAYOUT_QC_AUDIO_USD      = 1.00
 const PAYOUT_TRANSCRIPT_USD    = 1.00
 const PAYOUT_TRANSLATION_USD   = 1.00
 const PAYOUT_QC_TRANSCRIPT_USD = 1.00
@@ -73,7 +74,8 @@ export async function POST(request: NextRequest) {
         audio_cid, uploader_id,
         dialects ( name, code ),
         transcriptions ( id, content, transcriber_id ),
-        translations ( id, content, translator_id )
+        translations ( id, content, translator_id ),
+        qc_reviews ( reviewer_id, review_type )
       `)
       .in('id', clipIds)
       .in('status', ['minted', 'sellable'])
@@ -240,6 +242,11 @@ Audio files are accessible via any public IPFS gateway:
       const transcription = Array.isArray(clip.transcriptions) ? clip.transcriptions[0] : clip.transcriptions
       // @ts-ignore
       const translation   = Array.isArray(clip.translations)   ? clip.translations[0]   : clip.translations
+      // @ts-ignore
+      const reviews: Array<{ reviewer_id: string; review_type: string }> = Array.isArray(clip.qc_reviews)
+        ? clip.qc_reviews
+        : clip.qc_reviews ? [clip.qc_reviews] : []
+      const audioQcReview = reviews.find(r => r.review_type === 'audio_qc')
 
       // Audio uploader payout
       payoutInserts.push({
@@ -250,6 +257,18 @@ Audio files are accessible via any public IPFS gateway:
         amount_hbar:        parseFloat((PAYOUT_AUDIO_USD / hbarRateUSD).toFixed(8)),
         transaction_status: 'pending',
       })
+
+      // Audio QC reviewer payout
+      if (audioQcReview?.reviewer_id) {
+        payoutInserts.push({
+          purchase_id:        purchaseId,
+          recipient_id:       audioQcReview.reviewer_id,
+          payout_type:        'qc_review',
+          amount_usd:         PAYOUT_QC_AUDIO_USD,
+          amount_hbar:        parseFloat((PAYOUT_QC_AUDIO_USD / hbarRateUSD).toFixed(8)),
+          transaction_status: 'pending',
+        })
+      }
 
       // Transcriber payout
       if (transcription?.transcriber_id) {
@@ -284,13 +303,14 @@ Audio files are accessible via any public IPFS gateway:
       }
     }
 
-    // ── 10. Mark purchase completed ────────────────────────────────────
+    // ── 10. Store export URL — keep payment_status = 'pending' ────────────
+    // The purchase stays 'pending' until the buyer triggers the on-chain
+    // HBAR payment via POST /api/marketplace/payment.  The payment route
+    // will flip payment_status to 'completed' after the Hedera tx succeeds.
     await admin
       .from('dataset_purchases')
       .update({
-        payment_status: 'completed',
-        export_url:     exportUrl,
-        completed_at:   new Date().toISOString(),
+        export_url: exportUrl,
       })
       .eq('id', purchaseId)
 
@@ -309,12 +329,13 @@ Audio files are accessible via any public IPFS gateway:
     })
 
     const response: PurchaseResponse = {
-      success:     true,
+      success:         true,
       purchaseId,
       sampleCount,
       priceUSD,
       priceHBAR,
-      hbarRate: hbarRateUSD,
+      hbarRate:        hbarRateUSD,
+      paymentRequired: true,
     }
     return NextResponse.json(response, { status: 201 })
 
