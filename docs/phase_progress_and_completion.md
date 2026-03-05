@@ -1,7 +1,7 @@
 # Afridialect - Phase Progress and Completion
 
 **Project Start:** February 2026  
-**Last Updated:** March 4, 2026  
+**Last Updated:** March 5, 2026  
 **Version:** 1.0
 
 ---
@@ -1480,12 +1480,17 @@ New behaviour:
 
 ---
 
-### Feature 6 — HuggingFace-Compatible AI/ML Dataset Package
+### Feature 6 — HuggingFace-Compatible AI/ML Dataset Package with SSE Streaming
 
-`GET /api/marketplace/download/[id]` was fully rewritten:
+`GET /api/marketplace/download/[id]` was fully rewritten as an **SSE streaming endpoint** that emits real-time progress events to the buyer's browser while building the ZIP on demand.
 
-**Old behaviour:** served a signed URL for a pre-existing JSON manifest in `dataset-exports`.
-**New behaviour:** builds a ZIP file on demand from IPFS-pinned files, serves a 24h signed URL, auto-deletes after first download.
+**Old behaviour:** returned a `NextResponse.json()` with a signed URL for a pre-existing JSON manifest in `dataset-exports`.
+**New behaviour:** streams step-by-step build progress via `text/event-stream`, builds ZIP from IPFS on demand, returns a 24-hour signed URL in the `done` event.
+
+**SSE step sequence:**
+`auth_check → checking_cache → loading_clips → fetching_audio (×N, emits current/total) → building_zip → uploading → generating_url → done`
+
+**Cache hit shortcut:** if the ZIP already exists in storage, the stream skips straight to `generating_url → done`.
 
 **ZIP contents:**
 - `README.md` — HuggingFace dataset card (YAML frontmatter + markdown, CC-BY-4.0 license, speaker statistics, citation block)
@@ -1497,13 +1502,20 @@ New behaviour:
 **Implementation notes:**
 - ZIP built using raw binary (no external dependency) — pure DEFLATE store format, correct CRC-32.
 - Audio content-type → extension mapping (wav, mp3, ogg, m4a, bin fallback).
-- Package uploaded to `dataset-exports` bucket, signed URL generated (24h TTL).
-- After response is sent, async `Promise.resolve().then()` deletes the ZIP from storage and sets `package_deleted_at`.
+- Package uploaded to `dataset-exports` bucket; signed URL generated (24h TTL).
+- Package persists for the full signed-URL window so buyers can download it.
 - `download_count` incremented on every call; `downloaded_at` set on first call.
 
-**New DB columns** (added by `phase11_payout_structure.sql`):
+**Client component — `PrepareDatasetButton`** (`app/marketplace/purchase/[id]/components/PurchaseDownloadButton.tsx`):
+- Replaces simple `PurchaseDownloadButton`; consumes the SSE stream with a `fetch()` reader.
+- Renders a live step checklist (⬜ → 🔄 → ✅) matching the server steps above.
+- Shows a per-clip IPFS progress bar during `fetching_audio` (`Clip X of N / XX%`).
+- Auto-triggers browser download on `done` via a programmatically clicked `<a>` element.
+- Retry button resets all state on error; fallback manual download link if auto-trigger is blocked.
+
+**New DB columns** (added by `phase10_download.sql` migration):
 - `dataset_purchases.download_count INTEGER DEFAULT 0`
-- `dataset_purchases.package_deleted_at TIMESTAMPTZ`
+- `dataset_purchases.package_deleted_at TIMESTAMPTZ` (column present; no longer populated — see Bug Fix below)
 
 ---
 
@@ -1514,17 +1526,71 @@ lib/hedera/nft.ts                                    MODIFIED — NFT_MAX_SUPPLY
 lib/hedera/payment.ts                                MODIFIED — PayoutStructure, DEFAULT_PAYOUT_STRUCTURE, buildClipRecipients(…, payouts)
 app/api/marketplace/payment/route.ts                 MODIFIED — atomic batch, NFT burn slots, payout structure loading, nft_burns insert
 app/api/marketplace/purchase/route.ts                MODIFIED — removed hardcoded USD constants, loads payout_structure from DB
-app/api/marketplace/download/[id]/route.ts           MODIFIED — full IPFS→ZIP→signed-URL flow, auto-delete, download tracking
+app/api/marketplace/download/[id]/route.ts           MODIFIED — SSE streaming IPFS→ZIP→signed-URL flow, download tracking
 app/api/ipfs/cleanup/route.ts                        MODIFIED — cleans transcript + translation staging in addition to audio
 app/api/admin/payout-structure/route.ts              NEW — GET/PUT admin payout structure API
 app/admin/components/PayoutStructureClient.tsx        NEW — interactive payout editor UI
 app/admin/settings/page.tsx                          MODIFIED — added PayoutStructureClient section
 app/marketplace/components/MarketplaceClient.tsx      MODIFIED — transaction progress UI, HashScan link, updated button labels
-app/marketplace/purchase/[id]/page.tsx               MODIFIED — updated download info (ZIP format, IPFS, auto-delete note)
+app/marketplace/purchase/[id]/page.tsx               MODIFIED — passes sampleCount to PrepareDatasetButton
+app/marketplace/purchase/[id]/components/
+  PurchaseDownloadButton.tsx                         MODIFIED — renamed export PrepareDatasetButton, full SSE progress UI
 lib/supabase/migrations/phase11_payout_structure.sql NEW — payout_structure table, nft_burns tracking, staging cleanup columns
+lib/supabase/migrations/phase10_download.sql         NEW — download_count + package_deleted_at columns on dataset_purchases
 ```
 
 ### Build Verification
 - ✅ `npm run build` — 0 errors, all routes compiled (March 4, 2026)
 - ✅ `npx tsc --noEmit` — 0 type errors
 - ✅ No breaking changes to existing API contracts, UI layout, or component styles
+
+---
+
+## Bug Fix: Dataset ZIP Auto-Delete (March 5, 2026)
+
+**Branch:** `feature/AI-ML-dataset`  
+**Commits:** `c041c74` (SSE download), `9e409ee` (remove auto-delete)
+
+### Problem
+
+After the Phase 11 Extension landing, buyers reported that downloads failed immediately after pressing the button. The server log showed:
+
+```
+[download] Auto-deleted package for 9a535989-75d9-43c5-ac33-247a8568feae after download #1
+```
+
+### Root Cause
+
+The download route contained a fire-and-forget block:
+```typescript
+Promise.resolve().then(async () => {
+  await admin.storage.from('dataset-exports').remove([exportPath])
+  await admin.from('dataset_purchases').update({ package_deleted_at: ... })
+})
+```
+
+This ran **immediately after the signed URL was generated** — before the SSE `done` event even reached the client, let alone before the buyer's browser could fetch the ZIP via the signed URL. Signed URLs point to files in storage; once the file is deleted, the URL returns 404 even though it looks valid.
+
+### Fix
+
+Removed the entire `Promise.resolve().then(...)` auto-delete block from `GET /api/marketplace/download/[id]`.
+
+Also removed the `package_deleted_at` guard that would block re-downloads on any purchase where the ZIP had already been deleted before this fix.
+
+Also removed `package_deleted_at` from the DB select (column still exists in schema, no longer populated).
+
+### Result
+
+- Package persists in `dataset-exports` storage for the full 24-hour signed-URL window.
+- Buyers can click the link or use the auto-triggered `<a>` download at any point within that window.
+- Re-clicking "Prepare AI/ML Training Dataset" within the window returns instantly (cache hit path) without rebuilding from IPFS.
+
+### Files Changed
+
+```
+app/api/marketplace/download/[id]/route.ts  — removed auto-delete block + package_deleted_at guard + select column
+```
+
+### Build Verification
+- ✅ `npm run build` — 0 errors (March 5, 2026)
+- ✅ `git commit 9e409ee` — 1 file changed, 1 insertion(+), 18 deletions(-)

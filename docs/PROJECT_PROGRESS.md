@@ -2,7 +2,7 @@
 
 **Project Start Date:** February 21, 2026  
 **Status:** In Progress  
-**Current Phase:** Phase 11 Extension — Atomic Batch, AI/ML Dataset & Admin Payout Config — ✅ COMPLETE  
+**Current Phase:** Phase 11 Extension — Atomic Batch, AI/ML Dataset & Admin Payout Config — ✅ COMPLETE · Bug Fix (March 5, 2026) — ✅ COMPLETE
 **Overall Progress:** 100%
 
 ---
@@ -514,33 +514,41 @@
 - [x] Remove all hardcoded USD payout constants from purchase and payment routes
 - [x] Post-mint staging cleanup extended to transcript and translation staging buckets
 - [x] HuggingFace-compatible AI/ML dataset ZIP (audio from IPFS + JSONL manifest + dataset card)
-- [x] Dataset package auto-deleted from storage after first successful download
-- [x] Download tracking (`download_count`, `downloaded_at`, `package_deleted_at`)
+- [x] SSE streaming download endpoint with per-step and per-clip progress events
+- [x] `PrepareDatasetButton` client component with live step checklist + IPFS progress bar
+- [x] Download tracking (`download_count`, `downloaded_at`)
+- [x] **Bug fix (March 5):** removed auto-delete of ZIP from storage — package now persists for full 24h signed URL window
 - [x] `nft_burns` table records every burned serial with purchase link
 - [x] DB migration `phase11_payout_structure.sql` (idempotent, all changes additive)
+- [x] DB migration `phase10_download.sql` (`download_count` + `package_deleted_at` columns)
 
 #### Deliverables:
 - [x] `executeAtomicPurchaseBatch()` in `lib/hedera/nft.ts`
 - [x] `PayoutStructure` + `DEFAULT_PAYOUT_STRUCTURE` in `lib/hedera/payment.ts`
-- [x] `GET /api/marketplace/download/[id]` — full IPFS→ZIP→signed-URL flow
+- [x] `GET /api/marketplace/download/[id]` — SSE streaming IPFS→ZIP→signed-URL flow with per-clip progress
+- [x] `PrepareDatasetButton` — live step checklist + per-clip IPFS progress bar + auto-download on done
 - [x] `POST /api/ipfs/cleanup` — extended to 3 staging buckets
 - [x] `GET/PUT /api/admin/payout-structure` — admin payout API
 - [x] `PayoutStructureClient` — interactive admin UI
 - [x] `phase11_payout_structure.sql` — `payout_structure`, new columns on purchases/clips/transcriptions/translations
+- [x] `phase10_download.sql` — `download_count` + `package_deleted_at` columns
+- [x] Bug fix: removed ZIP auto-delete; package persists for 24h signed URL window (commit `9e409ee`)
 
 #### New / Modified Files:
 - `lib/hedera/nft.ts` (modified)
 - `lib/hedera/payment.ts` (modified)
 - `app/api/marketplace/payment/route.ts` (modified)
 - `app/api/marketplace/purchase/route.ts` (modified)
-- `app/api/marketplace/download/[id]/route.ts` (modified)
+- `app/api/marketplace/download/[id]/route.ts` (modified — SSE stream + bug fix)
 - `app/api/ipfs/cleanup/route.ts` (modified)
 - `app/api/admin/payout-structure/route.ts` (new)
 - `app/admin/components/PayoutStructureClient.tsx` (new)
 - `app/admin/settings/page.tsx` (modified)
 - `app/marketplace/components/MarketplaceClient.tsx` (modified)
 - `app/marketplace/purchase/[id]/page.tsx` (modified)
+- `app/marketplace/purchase/[id]/components/PurchaseDownloadButton.tsx` (modified — PrepareDatasetButton)
 - `lib/supabase/migrations/phase11_payout_structure.sql` (new)
+- `lib/supabase/migrations/phase10_download.sql` (new)
 
 ---
 
@@ -572,7 +580,8 @@
 - [x] **Milestone 8:** Marketplace live (Phase 9) ✅ Mar 3, 2026
 - [x] **Milestone 9:** Admin tools complete (Phase 10) ✅ Mar 3, 2026
 - [x] **Milestone 10:** V1 Production Launch — all phases complete ✅ Mar 3, 2026
-- [x] **Milestone 11:** Atomic batch purchase + AI/ML dataset + admin payout config ✅ Mar 4, 2026
+- [x] **Milestone 11:** Atomic batch purchase + AI/ML dataset SSE download + admin payout config ✅ Mar 4, 2026
+- [x] **Milestone 12:** Dataset download bug fix — ZIP persists for full signed-URL window ✅ Mar 5, 2026
 
 ---
 
@@ -634,13 +643,22 @@
 - Replaced hardcoded USD payout constants with `payout_structure` DB table (admin-configurable)
 - Added `PayoutStructureClient` admin UI and `GET/PUT /api/admin/payout-structure` API
 - Extended `/api/ipfs/cleanup` to remove transcript and translation staging files
-- Rewrote `/api/marketplace/download/[id]` to build HuggingFace-compatible ZIP from IPFS
+- Rewrote `/api/marketplace/download/[id]` as SSE streaming endpoint
+  - Steps: auth_check → checking_cache → loading_clips → fetching_audio (×N with current/total) → building_zip → uploading → generating_url → done
   - README.md dataset card, data.jsonl manifest, audio + transcript + translation files
-  - 24h signed URL TTL, auto-deleted from storage after first download
+  - 24h signed URL TTL
+- Added `PrepareDatasetButton` client component with live step checklist and per-clip IPFS progress bar
 - Added 3-step transaction progress UI with animated pulse and HashScan deeplink
-- DB migration `phase11_payout_structure.sql` applied (additive, idempotent)
+- DB migrations `phase11_payout_structure.sql` and `phase10_download.sql` applied
 - Build: `npm run build` 0 errors, `npx tsc --noEmit` 0 errors
+
+### March 5, 2026
+- **Bug fix:** Removed auto-delete of dataset ZIP from `dataset-exports` storage (commit `9e409ee`)
+  - Root cause: `Promise.resolve().then(() => storage.remove(...))` fired immediately after signed URL generation, deleting the ZIP before the buyer's browser could download it
+  - Fix: removed the entire fire-and-forget block; package now persists for the full 24-hour signed-URL window
+  - Also removed `package_deleted_at` guard that would have permanently blocked re-downloads on previously auto-deleted purchases
+- Documentation updated: `technical_docs.md`, `phase_progress_and_completion.md`, `PROJECT_PROGRESS.md`
 
 ---
 
-**Last Updated:** March 4, 2026
+**Last Updated:** March 5, 2026

@@ -1286,11 +1286,64 @@ Run `lib/supabase/migrations/phase11_payout_structure.sql` in Supabase Dashboard
 
 ---
 
-## AI/ML Dataset Download (Phase 11)
+## AI/ML Dataset Download (Phase 11 + Bug Fix March 5, 2026)
 
 ### Overview
 
-On purchase, the download endpoint builds a **HuggingFace-compatible ZIP package** assembled fresh from IPFS-pinned files. The package is stored in Supabase `dataset-exports` storage with a 24-hour TTL and auto-deleted from storage after the first successful download.
+On purchase, the download endpoint builds a **HuggingFace-compatible ZIP package** assembled fresh from IPFS-pinned files and streams real-time progress to the buyer's browser via **Server-Sent Events (SSE)**. The package is stored in Supabase `dataset-exports` storage with a 24-hour signed-URL TTL and persists for the full URL window so the buyer can download it.
+
+> **Note (March 5, 2026 fix):** An earlier implementation auto-deleted the ZIP from storage immediately after generating the signed URL (before the browser could fetch it). This has been removed. The package now persists until the signed URL expires (24 h). No auto-delete logic remains.
+
+### SSE Streaming Endpoint
+
+`GET /api/marketplace/download/[id]` — authenticated, buyer-only. Returns `Content-Type: text/event-stream`. Each event is a JSON object on a `data:` line:
+
+```typescript
+interface DownloadEvent {
+  step:          'auth_check' | 'checking_cache' | 'loading_clips' |
+                 'fetching_audio' | 'building_zip' | 'uploading' |
+                 'generating_url' | 'done' | 'error'
+  message:       string          // Human-readable status line
+  detail?:       string          // Optional secondary detail
+  current?:      number          // fetching_audio: current clip index (1-based)
+  total?:        number          // fetching_audio: total clips
+  downloadUrl?:  string          // done: 24h signed URL
+  sampleCount?:  number          // done: number of samples in the ZIP
+  downloadCount?: number         // done: how many times this purchase has been downloaded
+  error?:        string          // error: description
+}
+```
+
+**Step sequence:**
+
+| Step | Description |
+|---|---|
+| `auth_check` | Authenticates user and verifies purchase ownership + payment status |
+| `checking_cache` | Lists `dataset-exports` bucket — serves cached ZIP if it exists |
+| `loading_clips` | Queries `audio_clips` with approved transcriptions and translations |
+| `fetching_audio` | Downloads each audio file from Pinata IPFS gateway (emits `current`/`total` per clip) |
+| `building_zip` | Assembles README.md + data.jsonl + audio + transcript + translation files into ZIP |
+| `uploading` | Uploads ZIP to `dataset-exports/purchases/{purchaseId}/dataset.zip` |
+| `generating_url` | Creates 24-hour signed download URL |
+| `done` | Emits `downloadUrl`; buyer's browser triggers download |
+| `error` | Any failure — includes `error` field with description |
+
+**Cache hit path:** If `dataset.zip` already exists in storage, the endpoint skips straight from `checking_cache` to `generating_url`, emitting only those two steps before `done`.
+
+### Client Component — `PrepareDatasetButton`
+
+`app/marketplace/purchase/[id]/components/PurchaseDownloadButton.tsx` exports `PrepareDatasetButton` (default). It:
+
+1. On click, opens a `fetch()` stream to the SSE endpoint (not `EventSource` — avoids CORS cookie issues).
+2. Parses SSE events and renders a step-by-step progress checklist (⬜ → 🔄 → ✅).
+3. Shows a per-clip progress bar during `fetching_audio` (`Clip X of N`).
+4. On `done`: auto-triggers download via a programmatically clicked `<a>` element (more reliable than `window.open` for binary files through popup blockers).
+5. Shows a fallback manual download link if the auto-trigger was blocked.
+6. Retry button on error — resets all state and re-runs the full build.
+
+```tsx
+<PrepareDatasetButton purchaseId={purchaseId} sampleCount={purchase.sample_count} />
+```
 
 ### Package Structure
 
@@ -1331,7 +1384,7 @@ dataset.zip/
 | Raw upload | `audio-staging` | After uploader submits |
 | After minting | `audio-staging` deleted | `POST /api/ipfs/cleanup` (admin-triggered) |
 | On purchase download | `dataset-exports` ZIP created | `GET /api/marketplace/download/[id]` |
-| After first download | `dataset-exports` ZIP deleted | Auto (async, post-response) |
+| During signed URL window | `dataset-exports` ZIP persists | 24 hours after generation |
 | Audio always available | IPFS (Pinata) | Permanently pinned at mint |
 
 ### Staging Cleanup Endpoint
@@ -1348,13 +1401,16 @@ Response: `{ success, clipId, removedPaths: string[] }`
 
 - `dataset_purchases.download_count` — incremented on every download request.
 - `dataset_purchases.downloaded_at` — timestamp of the first download.
-- `dataset_purchases.package_deleted_at` — set when the ZIP is auto-deleted after download.
+- `dataset_purchases.package_deleted_at` — column exists in schema but is no longer populated (auto-delete removed March 5, 2026).
 - Audit log entry: `action = 'dataset_download'` with `sample_count`, `price_usd`, `download_count`.
 
 ### Key Files
 
 ```
-app/api/marketplace/download/[id]/route.ts  — GET endpoint: builds ZIP from IPFS, serves signed URL, auto-deletes
-app/api/ipfs/cleanup/route.ts               — POST endpoint: admin staging cleanup
-app/marketplace/purchase/[id]/page.tsx      — Updated download section (ZIP format info)
+app/api/marketplace/download/[id]/route.ts              — SSE streaming GET endpoint: auth → cache check → IPFS fetch → ZIP build → upload → signed URL → done
+app/marketplace/purchase/[id]/components/
+  PurchaseDownloadButton.tsx                            — PrepareDatasetButton: SSE consumer with step list + per-clip progress bar
+app/marketplace/purchase/[id]/page.tsx                  — Purchase detail page; passes purchaseId + sampleCount to PrepareDatasetButton
+app/api/ipfs/cleanup/route.ts                           — POST endpoint: admin staging cleanup
+lib/supabase/migrations/phase10_download.sql            — Adds download_count + package_deleted_at columns to dataset_purchases
 ```
