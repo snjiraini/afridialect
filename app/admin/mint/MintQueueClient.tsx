@@ -77,6 +77,17 @@ export default function MintQueueClient({ clips, mintedClipIds = [] }: Props) {
 
       if (data.success) {
         setMintedIds((prev) => new Set([...prev, clipId]))
+        // Auto-cleanup staging files after successful mint (non-fatal if it fails)
+        fetch('/api/ipfs/cleanup', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ clipId }),
+        }).then(async (r) => {
+          const d: CleanupResult = await r.json()
+          if (d.success) {
+            setCleanedIds((prev) => new Set([...prev, clipId]))
+          }
+        }).catch(() => { /* non-fatal — admin can still clean up manually */ })
       }
     } catch (err) {
       setResults((prev) => ({

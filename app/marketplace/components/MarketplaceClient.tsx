@@ -68,10 +68,14 @@ export default function MarketplaceClient({
     priceUSD: number
     priceHBAR: number
   } | null>(null)
-  // Payment (on-chain) state — set after purchase record is created
+  // SSE step tracking — shows real-time Hedera console progress
+  const [checkoutStep,    setCheckoutStep]    = useState<string | null>(null)
+  const [checkoutStepMsg, setCheckoutStepMsg] = useState<string>('')
+  const [checkoutStepDtl, setCheckoutStepDtl] = useState<string>('')
   const [paymentLoading,    setPaymentLoading]    = useState(false)
   const [paymentError,      setPaymentError]      = useState<string | null>(null)
   const [paymentTxId,       setPaymentTxId]       = useState<string | null>(null)
+  const [hashscanUrl,       setHashscanUrl]       = useState<string | null>(null)
 
   // ── HBAR rate & buyer balance ────────────────────────────────────────
   // Live rate from CoinGecko; falls back to 0.15 if unavailable
@@ -146,7 +150,7 @@ export default function MarketplaceClient({
 
   const clearCart = () => setCart([])
 
-  // ── Checkout handler ────────────────────────────────────────────────
+  // ── Checkout handler (SSE streaming — blockchain first, DB on success) ─
   const handleCheckout = async () => {
     if (cart.length === 0) return
     if (!hasBuyerRole) {
@@ -166,9 +170,15 @@ export default function MarketplaceClient({
     }
 
     setCheckoutLoading(true)
+    setPaymentLoading(true)
     setCheckoutError(null)
     setPaymentError(null)
     setPaymentTxId(null)
+    setHashscanUrl(null)
+    setCheckoutStep('validating')
+    setCheckoutStepMsg('Starting checkout…')
+    setCheckoutStepDtl('')
+
     try {
       const filters: DatasetFilter = {
         dialects:      selectedDialects.length > 0 ? selectedDialects : undefined,
@@ -179,48 +189,88 @@ export default function MarketplaceClient({
         speakerCount:  speakerCount ? parseInt(speakerCount)   : undefined,
       }
 
-      // Step 1: Create purchase record (payment_status = 'pending')
-      const res = await fetch('/api/marketplace/purchase', {
+      const response = await fetch('/api/marketplace/checkout', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ clipIds: cart.map((c) => c.id), filters, hbarRateUSD }),
       })
-      const data = await res.json()
-      if (!res.ok || !data.success) {
-        setCheckoutError(data.error ?? 'Checkout failed')
+
+      if (!response.ok || !response.body) {
+        const errText = await response.text().catch(() => 'Checkout failed')
+        setCheckoutError(errText)
+        setCheckoutLoading(false)
+        setPaymentLoading(false)
+        setCheckoutStep(null)
         return
       }
 
-      const result = {
-        purchaseId:  data.purchaseId,
-        sampleCount: data.sampleCount,
-        priceUSD:    data.priceUSD,
-        priceHBAR:   data.priceHBAR,
-      }
-      setPurchaseResult(result)
-      setCart([])
-      setCheckoutLoading(false)
+      // Read SSE stream
+      const reader  = response.body.getReader()
+      const decoder = new TextDecoder()
+      let   buffer  = ''
 
-      // Step 2: Execute on-chain HBAR payment (single atomic Hedera tx)
-      setPaymentLoading(true)
-      const payRes = await fetch('/api/marketplace/payment', {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ purchaseId: data.purchaseId }),
-      })
-      const payData = await payRes.json()
-      if (!payRes.ok || !payData.success) {
-        setPaymentError(friendlyPaymentError(payData.error))
-        // Refresh balance after a failed attempt so the UI stays accurate
-        fetch('/api/hedera/balance').then(r => r.json()).then(d => {
-          if (typeof d.hbar === 'number') setBuyerBalanceHbar(d.hbar)
-        }).catch(() => {})
-      } else {
-        setPaymentTxId(payData.transactionId ?? null)
-        // Refresh balance to reflect the deduction
-        fetch('/api/hedera/balance').then(r => r.json()).then(d => {
-          if (typeof d.hbar === 'number') setBuyerBalanceHbar(d.hbar)
-        }).catch(() => {})
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+
+        buffer += decoder.decode(value, { stream: true })
+
+        // Split on double-newline (SSE event boundary)
+        const events = buffer.split('\n\n')
+        buffer = events.pop() ?? '' // keep any incomplete chunk
+
+        for (const raw of events) {
+          const line = raw.trim()
+          if (!line.startsWith('data:')) continue
+
+          try {
+            const event = JSON.parse(line.slice(5).trim()) as {
+              step:        string
+              message:     string
+              detail?:     string
+              txId?:       string
+              hashscanUrl?: string
+              purchaseId?: string
+              sampleCount?: number
+              priceUSD?:   number
+              priceHBAR?:  number
+              error?:      string
+            }
+
+            setCheckoutStep(event.step)
+            setCheckoutStepMsg(event.message)
+            setCheckoutStepDtl(event.detail ?? '')
+
+            if (event.step === 'done') {
+              // Success — now clear cart and set results
+              setCart([])
+              setPaymentTxId(event.txId ?? null)
+              setHashscanUrl(event.hashscanUrl ?? null)
+              if (event.purchaseId) {
+                setPurchaseResult({
+                  purchaseId:  event.purchaseId,
+                  sampleCount: event.sampleCount ?? cart.length,
+                  priceUSD:    event.priceUSD    ?? cartTotalUSD,
+                  priceHBAR:   event.priceHBAR   ?? cartTotalHbar,
+                })
+              }
+              // Refresh balance to reflect the deduction
+              fetch('/api/hedera/balance').then(r => r.json()).then(d => {
+                if (typeof d.hbar === 'number') setBuyerBalanceHbar(d.hbar)
+              }).catch(() => {})
+            }
+
+            if (event.step === 'error') {
+              setPaymentError(friendlyPaymentError(event.error))
+              // Refresh balance — nothing was charged but keep UI accurate
+              fetch('/api/hedera/balance').then(r => r.json()).then(d => {
+                if (typeof d.hbar === 'number') setBuyerBalanceHbar(d.hbar)
+              }).catch(() => {})
+            }
+          } catch {
+            // Malformed SSE line — ignore
+          }
+        }
       }
     } catch (err) {
       setCheckoutError(err instanceof Error ? err.message : 'Network error')
@@ -242,13 +292,10 @@ export default function MarketplaceClient({
 
   // ── Maps raw Hedera/server error strings to buyer-friendly messages ──
   const friendlyPaymentError = (raw: string | undefined): string => {
-    if (!raw) return 'On-chain payment failed. Your purchase record is saved — contact support.'
+    if (!raw) return 'On-chain payment failed. No funds were deducted. Please try again or contact support.'
     const r = raw.toUpperCase()
     if (r.includes('INSUFFICIENT_ACCOUNT_BALANCE') || r.includes('INSUFFICIENT_PAYER_BALANCE')) {
-      const need = hbarRateUSD > 0
-        ? ` You need ≈ℏ${(purchaseResult ? purchaseResult.priceHBAR : 0).toFixed(2)}.`
-        : ''
-      return `Your HBAR balance is too low to complete this payment.${need} Please top up your Hedera account.`
+      return `Your HBAR balance is too low to complete this payment. Please top up your Hedera account.`
     }
     if (r.includes('INVALID_SIGNATURE')) {
       return 'Payment authorisation failed. This is a technical issue — your account has NOT been charged. Please contact support.'
@@ -531,79 +578,78 @@ export default function MarketplaceClient({
 
       {/* ── Right: Cart ───────────────────────────────────────────── */}
       <aside className="lg:col-span-1 space-y-4">
-        {/* Purchase / payment progress */}
-        {purchaseResult && (
+        {/* SSE live checkout progress — shown while streaming or after completion/error */}
+        {checkoutStep && (
           <div
             className="af-card p-5"
-            style={{ borderLeft: `4px solid ${paymentTxId ? 'var(--af-success)' : paymentError ? 'var(--af-danger)' : 'var(--af-warning)'}` }}
+            style={{
+              borderLeft: `4px solid ${
+                checkoutStep === 'done'  ? 'var(--af-success)' :
+                checkoutStep === 'error' ? 'var(--af-danger)'  :
+                'var(--af-primary)'
+              }`,
+            }}
           >
             <p className="text-sm font-semibold mb-1" style={{ color: 'var(--af-txt)' }}>
-              {paymentTxId ? '✅ Payment Complete' : paymentLoading ? '⏳ Processing Payment…' : paymentError ? '⚠️ Payment Issue' : '🛒 Order Created'}
+              {checkoutStep === 'done'  ? '✅ Purchase Complete' :
+               checkoutStep === 'error' ? '⚠️ Purchase Failed'  :
+               '⏳ Processing…'}
             </p>
-            <p className="text-xs mb-3" style={{ color: 'var(--af-muted)' }}>
-              {purchaseResult.sampleCount} samples · ${purchaseResult.priceUSD.toFixed(2)} USD · ℏ{purchaseResult.priceHBAR.toFixed(4)}
-            </p>
 
-            {/* Blockchain transaction progress steps */}
-            {(paymentLoading || paymentTxId || paymentError) && (
-              <div className="space-y-2 mb-3">
-                {/* Step 1 */}
-                <div className="flex items-start gap-2">
-                  <span className="text-sm mt-0.5">
-                    {paymentLoading || paymentTxId ? '✅' : '⏳'}
-                  </span>
-                  <div>
-                    <p className="text-xs font-medium" style={{ color: 'var(--af-txt)' }}>
-                      Purchase record created
-                    </p>
-                    <p className="text-[10px]" style={{ color: 'var(--af-muted)' }}>
-                      Order {purchaseResult.purchaseId.slice(0, 8).toUpperCase()}… reserved
-                    </p>
-                  </div>
-                </div>
+            {/* Real-time step list */}
+            <div className="space-y-2 mb-3">
+              {([
+                { key: 'validating',    label: 'Validating clips & account' },
+                { key: 'loading_payout', label: 'Loading payout configuration' },
+                { key: 'loading_nfts',  label: 'Loading NFT records' },
+                { key: 'building_tx',   label: 'Building Hedera transaction' },
+                { key: 'signing_tx',    label: 'Signing with AWS KMS' },
+                { key: 'submitting_tx', label: 'Submitting to Hedera network' },
+                { key: 'confirming_tx', label: 'Confirming on-chain' },
+                { key: 'saving_records', label: 'Saving purchase records' },
+              ] as Array<{ key: string; label: string }>).map(({ key, label }) => {
+                const stepOrder = [
+                  'validating','loading_payout','loading_nfts','building_tx',
+                  'signing_tx','submitting_tx','confirming_tx','saving_records','done',
+                ]
+                const currentIdx = stepOrder.indexOf(checkoutStep)
+                const thisIdx    = stepOrder.indexOf(key)
+                const done       = checkoutStep === 'done' || thisIdx < currentIdx
+                const active     = key === checkoutStep && checkoutStep !== 'done' && checkoutStep !== 'error'
+                const failed     = checkoutStep === 'error' && thisIdx === currentIdx
 
-                {/* Step 2 */}
-                <div className="flex items-start gap-2">
-                  <span className="text-sm mt-0.5">
-                    {paymentTxId ? '✅' : paymentLoading ? '🔄' : paymentError ? '❌' : '⏳'}
-                  </span>
-                  <div>
-                    <p className={`text-xs font-medium ${paymentLoading ? 'animate-pulse' : ''}`} style={{ color: paymentLoading ? 'var(--af-primary)' : 'var(--af-txt)' }}>
-                      {paymentLoading ? 'Broadcasting to Hedera network…' : paymentTxId ? 'HBAR transferred on-chain' : paymentError ? 'On-chain transfer failed' : 'Hedera HBAR transfer'}
-                    </p>
-                    {paymentLoading && (
-                      <p className="text-[10px]" style={{ color: 'var(--af-muted)' }}>
-                        Distributing ℏ{purchaseResult.priceHBAR.toFixed(4)} to contributors + platform
+                return (
+                  <div key={key} className="flex items-start gap-2">
+                    <span className="text-sm mt-0.5 flex-shrink-0">
+                      {done   ? '✅' :
+                       active ? '🔄' :
+                       failed ? '❌' :
+                       '⬜'}
+                    </span>
+                    <div className="min-w-0">
+                      <p
+                        className={`text-xs font-medium ${active ? 'animate-pulse' : ''}`}
+                        style={{ color: active ? 'var(--af-primary)' : done ? 'var(--af-txt)' : 'var(--af-muted)' }}
+                      >
+                        {label}
                       </p>
-                    )}
-                    {paymentTxId && (
-                      <p className="text-[10px]" style={{ color: 'var(--af-muted)' }}>
-                        ℏ{purchaseResult.priceHBAR.toFixed(4)} distributed to all contributors
-                      </p>
-                    )}
+                      {active && checkoutStepMsg && (
+                        <p className="text-[10px]" style={{ color: 'var(--af-muted)' }}>
+                          {checkoutStepMsg}
+                        </p>
+                      )}
+                      {active && checkoutStepDtl && (
+                        <p className="text-[10px]" style={{ color: 'var(--af-muted)' }}>
+                          {checkoutStepDtl}
+                        </p>
+                      )}
+                    </div>
                   </div>
-                </div>
+                )
+              })}
+            </div>
 
-                {/* Step 3 */}
-                <div className="flex items-start gap-2">
-                  <span className="text-sm mt-0.5">
-                    {paymentTxId ? '✅' : paymentLoading ? '⏳' : '⏳'}
-                  </span>
-                  <div>
-                    <p className="text-xs font-medium" style={{ color: 'var(--af-txt)' }}>
-                      {paymentTxId ? 'Dataset package ready' : 'Awaiting payment confirmation'}
-                    </p>
-                    {paymentTxId && (
-                      <p className="text-[10px]" style={{ color: 'var(--af-muted)' }}>
-                        Audio + transcripts + translations packaged for download
-                      </p>
-                    )}
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Transaction ID success display */}
+            {/* Transaction ID — shown on success */}
             {paymentTxId && (
               <div
                 className="rounded-xl p-3 mb-3"
@@ -616,7 +662,7 @@ export default function MarketplaceClient({
                   {paymentTxId}
                 </p>
                 <a
-                  href={`https://hashscan.io/${process.env.NEXT_PUBLIC_HEDERA_NETWORK ?? 'testnet'}/transaction/${paymentTxId}`}
+                  href={hashscanUrl ?? `https://hashscan.io/${process.env.NEXT_PUBLIC_HEDERA_NETWORK ?? 'testnet'}/transaction/${paymentTxId}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-[10px] mt-1 inline-block"
@@ -633,12 +679,14 @@ export default function MarketplaceClient({
               </p>
             )}
 
-            <a
-              href={`/marketplace/purchase/${purchaseResult.purchaseId}`}
-              className="btn-primary text-xs block text-center"
-            >
-              {paymentTxId ? '⬇️ Download Dataset' : 'View Order Details'}
-            </a>
+            {purchaseResult && paymentTxId && (
+              <a
+                href={`/marketplace/purchase/${purchaseResult.purchaseId}`}
+                className="btn-primary text-xs block text-center"
+              >
+                ⬇️ Download Dataset
+              </a>
+            )}
           </div>
         )}
 
