@@ -394,66 +394,8 @@ export async function POST(request: NextRequest) {
         const expiresAt  = new Date(Date.now() + EXPORT_TTL_SECONDS * 1000).toISOString()
         const purchaseId = crypto.randomUUID()
 
-        // Build HuggingFace-compatible JSONL manifest
-        const manifestLines: string[] = []
-        for (const clip of clips) {
-          // @ts-ignore — supabase join typing
-          const dialect       = Array.isArray(clip.dialects)       ? clip.dialects[0]       : clip.dialects
-          // @ts-ignore
-          const transcription = Array.isArray(clip.transcriptions) ? clip.transcriptions[0] : clip.transcriptions
-          // @ts-ignore
-          const translation   = Array.isArray(clip.translations)   ? clip.translations[0]   : clip.translations
-          manifestLines.push(JSON.stringify({
-            id:              clip.id,
-            // @ts-ignore
-            dialect_code:    dialect?.code   ?? 'xx',
-            // @ts-ignore
-            dialect_name:    dialect?.name   ?? 'Unknown',
-            audio_cid:       clip.audio_cid,
-            duration_seconds: clip.duration_seconds,
-            speaker_gender:  clip.speaker_gender,
-            speaker_age:     clip.speaker_age_range,
-            speaker_count:   clip.speaker_count,
-            // @ts-ignore
-            transcript:      transcription?.content ?? null,
-            // @ts-ignore
-            translation:     translation?.content   ?? null,
-          }))
-        }
-
-        const packageContent = JSON.stringify({
-          records: manifestLines.map((l) => JSON.parse(l)),
-          meta: {
-            purchase_id:          purchaseId,
-            buyer_id:             user.id,
-            sample_count:         sampleCount,
-            price_usd:            priceUSD,
-            price_hbar:           priceHBAR,
-            hbar_rate:            hbarRateUSD,
-            payment_transaction_id: txId,
-            generated_at:         new Date().toISOString(),
-            expires_at:           expiresAt,
-          },
-        }, null, 2)
-
-        // Upload manifest to storage
-        const exportPath = `purchases/${purchaseId}/dataset.json`
-        let exportUrl: string | null = null
-        try {
-          const { error: uploadErr } = await admin.storage
-            .from('dataset-exports')
-            .upload(exportPath, Buffer.from(packageContent), { contentType: 'application/json', upsert: true })
-          if (!uploadErr) {
-            const { data: signedData } = await admin.storage
-              .from('dataset-exports')
-              .createSignedUrl(exportPath, EXPORT_TTL_SECONDS)
-            exportUrl = signedData?.signedUrl ?? null
-          }
-        } catch (storageErr) {
-          console.warn('[checkout] Storage upload failed (non-fatal):', storageErr)
-        }
-
         // Insert purchase record (status = completed from the start)
+        // The full ZIP package is built on-demand by GET /api/marketplace/download/[id]
         await admin.from('dataset_purchases').insert({
           id:                     purchaseId,
           buyer_id:               user.id,
@@ -465,7 +407,6 @@ export async function POST(request: NextRequest) {
           payment_status:         'completed',
           payment_transaction_id: txId,
           export_expires_at:      expiresAt,
-          export_url:             exportUrl,
           hbar_rate:              hbarRateUSD,
           dialect_ids:            [],
           completed_at:           new Date().toISOString(),

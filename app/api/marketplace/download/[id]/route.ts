@@ -1,32 +1,24 @@
 /**
  * GET /api/marketplace/download/[id]
  *
- * Builds and returns a full HuggingFace-compatible AI/ML dataset package
- * for a completed purchase. The package is assembled from IPFS-pinned files
- * and includes:
- *   - Audio files (downloaded from IPFS)
- *   - Transcripts (text)
- *   - English translations (text)
- *   - A JSONL manifest
- *   - A dataset card (README.md in HuggingFace format)
+ * SSE endpoint — streams real-time build progress to the client, then
+ * emits a final { step:'done', downloadUrl } event the browser uses to
+ * trigger the ZIP download.
  *
- * Flow:
- * 1. Auth + ownership check
- * 2. If package already exists in staging (dataset-exports bucket), serve it
- * 3. Otherwise: fetch clip data, download from IPFS, build ZIP, upload to staging
- * 4. Return signed URL (24h TTL)
- * 5. Track download; auto-delete package from staging after first successful download
+ * Steps emitted:
+ *   auth_check → checking_cache → loading_clips → fetching_audio (×N) →
+ *   building_zip → uploading → generating_url → done | error
  *
  * Storage lifecycle:
- *  - After minting: staging audio/transcript/translation files cleaned up
- *  - On purchase: package assembled from IPFS into dataset-exports bucket
- *  - After download: package deleted from dataset-exports bucket
- *  - Package auto-expires after 24h regardless (export_expires_at)
+ *  - Package built on-demand into dataset-exports bucket
+ *  - Signed URL valid for 24 h (EXPORT_TTL_SECONDS)
+ *  - Package auto-deleted from storage after first download
+ *  - If package already exists (re-download within TTL) it is served directly
  */
 
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 
 const EXPORT_TTL_SECONDS = 24 * 60 * 60
 const IPFS_GATEWAY = 'https://gateway.pinata.cloud/ipfs'
@@ -99,121 +91,183 @@ export async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  try {
-    const { id: purchaseId } = await params
+  const encoder = new TextEncoder()
+  const { id: purchaseId } = await params
 
-    const supabase = await createClient()
-    const { data: { user }, error: authErr } = await supabase.auth.getUser()
-    if (authErr || !user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-
-    const admin = createAdminClient()
-
-    const { data: purchase, error: fetchErr } = await admin
-      .from('dataset_purchases')
-      .select('id, buyer_id, payment_status, export_expires_at, downloaded_at, download_count, sample_count, price_usd, audio_clip_ids, package_deleted_at')
-      .eq('id', purchaseId)
-      .single()
-
-    if (fetchErr || !purchase) return NextResponse.json({ error: 'Purchase not found' }, { status: 404 })
-
-    const { data: adminRole } = await admin.from('user_roles').select('id').eq('user_id', user.id).eq('role', 'admin').maybeSingle()
-    if (purchase.buyer_id !== user.id && !adminRole) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-    if (purchase.payment_status !== 'completed') return NextResponse.json({ error: 'Purchase is not completed' }, { status: 400 })
-
-    if (purchase.export_expires_at && new Date(purchase.export_expires_at) < new Date()) {
-      return NextResponse.json({ error: 'Download link has expired. Please contact support.' }, { status: 410 })
-    }
-    if (purchase.package_deleted_at) {
-      return NextResponse.json({ error: 'This dataset package was already downloaded and deleted per our retention policy.' }, { status: 410 })
-    }
-
-    const exportPath = `purchases/${purchaseId}/dataset.zip`
-
-    // Check if package already exists
-    const { data: listing } = await admin.storage.from('dataset-exports').list(`purchases/${purchaseId}`)
-    const packageExists = (listing ?? []).some((f: { name: string }) => f.name === 'dataset.zip')
-
-    if (!packageExists) {
-      // Build the package from IPFS
-      const clipIds: string[] = purchase.audio_clip_ids ?? []
-      const { data: clips, error: clipsErr } = await admin
-        .from('audio_clips')
-        .select(`
-          id, audio_cid, duration_seconds, speaker_gender, speaker_age_range, speaker_count,
-          dialects ( name, code ),
-          transcriptions ( content, transcript_cid ),
-          translations ( content, translation_cid )
-        `)
-        .in('id', clipIds)
-
-      if (clipsErr || !clips) return NextResponse.json({ error: 'Failed to load clip data' }, { status: 500 })
-
-      const zipFiles: Array<{ name: string; data: Uint8Array | string }> = []
-      const manifestLines: string[] = []
-      let totalDurationSeconds = 0
-      const dialectSet = new Set<string>()
-      const genderCounts: Record<string, number> = {}
-      const ageCounts: Record<string, number> = {}
-
-      for (const clip of clips) {
-        // @ts-ignore
-        const dialect       = Array.isArray(clip.dialects)       ? clip.dialects[0]       : clip.dialects
-        // @ts-ignore
-        const transcription = Array.isArray(clip.transcriptions) ? clip.transcriptions[0] : clip.transcriptions
-        // @ts-ignore
-        const translation   = Array.isArray(clip.translations)   ? clip.translations[0]   : clip.translations
-
-        const dCode = dialect?.code ?? 'xx'
-        const dName = dialect?.name ?? 'Unknown'
-        dialectSet.add(dName)
-        totalDurationSeconds += clip.duration_seconds ?? 0
-        if (clip.speaker_gender)    genderCounts[clip.speaker_gender]    = (genderCounts[clip.speaker_gender]    ?? 0) + 1
-        if (clip.speaker_age_range) ageCounts[clip.speaker_age_range]    = (ageCounts[clip.speaker_age_range]   ?? 0) + 1
-
-        let audioFileName = `audio/${clip.id}.${dCode}.bin`
-        if (clip.audio_cid) {
-          try {
-            const { data: audioData, contentType } = await fetchFromIPFS(clip.audio_cid)
-            const ext = contentType.includes('wav') ? 'wav'
-              : (contentType.includes('mpeg') || contentType.includes('mp3')) ? 'mp3'
-              : contentType.includes('ogg') ? 'ogg'
-              : (contentType.includes('m4a') || contentType.includes('mp4')) ? 'm4a' : 'bin'
-            audioFileName = `audio/${clip.id}.${dCode}.${ext}`
-            zipFiles.push({ name: audioFileName, data: new Uint8Array(audioData) })
-          } catch (e) {
-            console.warn(`[download] Could not fetch audio CID ${clip.audio_cid} from IPFS:`, e)
-          }
-        }
-
-        const transcriptText = transcription?.content ?? ''
-        if (transcriptText) zipFiles.push({ name: `transcripts/${clip.id}.${dCode}.txt`, data: transcriptText })
-
-        const translationText = translation?.content ?? ''
-        if (translationText) zipFiles.push({ name: `translations/${clip.id}.en.txt`, data: translationText })
-
-        manifestLines.push(JSON.stringify({
-          id:               clip.id,
-          dialect_code:     dCode,
-          dialect_name:     dName,
-          audio_file:       audioFileName,
-          audio_cid:        clip.audio_cid ?? null,
-          transcript_file:  transcriptText ? `transcripts/${clip.id}.${dCode}.txt` : null,
-          translation_file: translationText ? `translations/${clip.id}.en.txt` : null,
-          duration_seconds: clip.duration_seconds,
-          speaker_gender:   clip.speaker_gender,
-          speaker_age:      clip.speaker_age_range,
-          speaker_count:    clip.speaker_count,
-          transcript:       transcriptText || null,
-          translation:      translationText || null,
-        }))
+  const stream = new ReadableStream({
+    async start(controller) {
+      function emit(event: Record<string, unknown>) {
+        try {
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify(event)}\n\n`))
+        } catch { /* stream closed */ }
+      }
+      function close() {
+        try { controller.close() } catch { /* already closed */ }
       }
 
-      zipFiles.push({ name: 'data.jsonl', data: manifestLines.join('\n') })
+      try {
+        // ── Step 1: Auth + ownership check ────────────────────────────
+        emit({ step: 'auth_check', message: 'Authenticating…' })
 
-      // Build dataset card
-      const totalMinutes = Math.round(totalDurationSeconds / 60)
-      const dialectList  = Array.from(dialectSet)
-      const datasetCard  = `---
+        const supabase = await createClient()
+        const { data: { user }, error: authErr } = await supabase.auth.getUser()
+        if (authErr || !user) {
+          emit({ step: 'error', message: 'Authentication failed', error: 'Unauthorized' })
+          close(); return
+        }
+
+        const admin = createAdminClient()
+
+        const { data: purchase, error: fetchErr } = await admin
+          .from('dataset_purchases')
+          .select('id, buyer_id, payment_status, export_expires_at, downloaded_at, download_count, sample_count, price_usd, audio_clip_ids, package_deleted_at')
+          .eq('id', purchaseId)
+          .single()
+
+        if (fetchErr || !purchase) {
+          emit({ step: 'error', message: 'Purchase not found', error: 'Not found' })
+          close(); return
+        }
+
+        const { data: adminRole } = await admin.from('user_roles').select('id').eq('user_id', user.id).eq('role', 'admin').maybeSingle()
+        if (purchase.buyer_id !== user.id && !adminRole) {
+          emit({ step: 'error', message: 'Access denied', error: 'Forbidden' })
+          close(); return
+        }
+        if (purchase.payment_status !== 'completed') {
+          emit({ step: 'error', message: 'Purchase is not completed yet', error: 'Payment pending' })
+          close(); return
+        }
+        if (purchase.export_expires_at && new Date(purchase.export_expires_at) < new Date()) {
+          emit({ step: 'error', message: 'Download window has expired', error: 'Link expired — contact support' })
+          close(); return
+        }
+        if (purchase.package_deleted_at) {
+          emit({ step: 'error', message: 'Package already downloaded and deleted', error: 'Request a new download link from support' })
+          close(); return
+        }
+
+        const exportPath = `purchases/${purchaseId}/dataset.zip`
+
+        // ── Step 2: Check cache ────────────────────────────────────────
+        emit({ step: 'checking_cache', message: 'Checking for existing package…' })
+
+        const { data: listing } = await admin.storage
+          .from('dataset-exports')
+          .list(`purchases/${purchaseId}`)
+        const packageExists = (listing ?? []).some((f: { name: string }) => f.name === 'dataset.zip')
+
+        if (!packageExists) {
+          // ── Step 3a: Load clip IDs ─────────────────────────────────
+          const clipIds: string[] = purchase.audio_clip_ids ?? []
+
+          emit({
+            step:    'loading_clips',
+            message: 'Loading clip data…',
+            detail:  `${clipIds.length} clip(s)`,
+          })
+
+          // ── Step 3b: Query clips with joins ────────────────────────
+          const { data: clips, error: clipsErr } = await admin
+            .from('audio_clips')
+            .select(`
+              id, audio_cid, duration_seconds, speaker_gender, speaker_age_range, speaker_count,
+              dialects ( name, code ),
+              transcriptions ( content, transcript_cid ),
+              translations ( content, translation_cid )
+            `)
+            .in('id', clipIds)
+
+          if (clipsErr || !clips) {
+            emit({ step: 'error', message: 'Failed to load clip data', error: clipsErr?.message ?? 'Unknown error' })
+            close(); return
+          }
+
+          const zipFiles: Array<{ name: string; data: Uint8Array | string }> = []
+          const manifestLines: string[] = []
+          let totalDurationSeconds = 0
+          const dialectSet = new Set<string>()
+          const genderCounts: Record<string, number> = {}
+          const ageCounts: Record<string, number> = {}
+
+          // ── Step 3c: Fetch audio from IPFS + build text files ──────
+          for (let i = 0; i < clips.length; i++) {
+            const clip = clips[i]
+            // @ts-ignore — supabase join typing
+            const dialect       = Array.isArray(clip.dialects)       ? clip.dialects[0]       : clip.dialects
+            // @ts-ignore
+            const transcription = Array.isArray(clip.transcriptions) ? clip.transcriptions[0] : clip.transcriptions
+            // @ts-ignore
+            const translation   = Array.isArray(clip.translations)   ? clip.translations[0]   : clip.translations
+
+            const dCode = dialect?.code ?? 'xx'
+            const dName = dialect?.name ?? 'Unknown'
+            dialectSet.add(dName)
+            totalDurationSeconds += clip.duration_seconds ?? 0
+            if (clip.speaker_gender)    genderCounts[clip.speaker_gender]    = (genderCounts[clip.speaker_gender]    ?? 0) + 1
+            if (clip.speaker_age_range) ageCounts[clip.speaker_age_range]    = (ageCounts[clip.speaker_age_range]   ?? 0) + 1
+
+            emit({
+              step:    'fetching_audio',
+              message: `Fetching audio from IPFS…`,
+              detail:  `Clip ${i + 1} of ${clips.length} · ${dName}`,
+              current: i + 1,
+              total:   clips.length,
+            })
+
+            let audioFileName = `audio/${clip.id}.${dCode}.bin`
+            if (clip.audio_cid) {
+              try {
+                const { data: audioData, contentType } = await fetchFromIPFS(clip.audio_cid)
+                const ext = contentType.includes('wav') ? 'wav'
+                  : (contentType.includes('mpeg') || contentType.includes('mp3')) ? 'mp3'
+                  : contentType.includes('ogg') ? 'ogg'
+                  : (contentType.includes('m4a') || contentType.includes('mp4')) ? 'm4a' : 'bin'
+                audioFileName = `audio/${clip.id}.${dCode}.${ext}`
+                zipFiles.push({ name: audioFileName, data: new Uint8Array(audioData) })
+              } catch (e) {
+                console.warn(`[download] IPFS fetch failed for CID ${clip.audio_cid}:`, e)
+                // Non-fatal — clip is included in manifest without audio file
+              }
+            }
+
+            // Transcript → transcripts/{id}.{dialect}.txt
+            const transcriptText = transcription?.content ?? ''
+            if (transcriptText) {
+              zipFiles.push({ name: `transcripts/${clip.id}.${dCode}.txt`, data: transcriptText })
+            }
+
+            // Translation → translations/{id}.en.txt
+            const translationText = translation?.content ?? ''
+            if (translationText) {
+              zipFiles.push({ name: `translations/${clip.id}.en.txt`, data: translationText })
+            }
+
+            manifestLines.push(JSON.stringify({
+              id:               clip.id,
+              dialect_code:     dCode,
+              dialect_name:     dName,
+              audio_file:       audioFileName,
+              audio_cid:        clip.audio_cid ?? null,
+              transcript_file:  transcriptText  ? `transcripts/${clip.id}.${dCode}.txt` : null,
+              translation_file: translationText ? `translations/${clip.id}.en.txt`      : null,
+              duration_seconds: clip.duration_seconds,
+              speaker_gender:   clip.speaker_gender,
+              speaker_age:      clip.speaker_age_range,
+              speaker_count:    clip.speaker_count,
+              transcript:       transcriptText  || null,
+              translation:      translationText || null,
+            }))
+          }
+
+          // ── Step 3d: Build README (HuggingFace dataset card) ───────
+          emit({ step: 'building_zip', message: 'Building dataset card & JSONL manifest…' })
+
+          zipFiles.push({ name: 'data.jsonl', data: manifestLines.join('\n') })
+
+          const totalMinutes = Math.round(totalDurationSeconds / 60)
+          const dialectList  = Array.from(dialectSet)
+          const datasetCard  = `---
 license: cc-by-4.0
 language:
 ${dialectList.map((d) => `  - ${d.toLowerCase().replace(/\s+/g, '-')}`).join('\n')}
@@ -281,13 +335,13 @@ dataset.zip/
 
 ## Annotation Guidelines
 
-- **Transcription:** Verbatim orthographic transcription in the source dialect. Speaker turns separated by newlines.
+- **Transcription:** Verbatim orthographic transcription in the source dialect.
 - **Translation:** Faithful English translation of the transcription.
 - **QC:** All samples passed multi-stage quality control (audio QC → transcript QC → translation QC).
 
 ## IPFS Audio Access
 
-Audio is permanently pinned on IPFS. Retrieve any file via:
+Audio is permanently pinned on IPFS. Retrieve any file directly:
 
 \`https://gateway.pinata.cloud/ipfs/{audio_cid}\`
 
@@ -307,61 +361,102 @@ Audio is permanently pinned on IPFS. Retrieve any file via:
 }
 \`\`\`
 `
-      zipFiles.unshift({ name: 'README.md', data: datasetCard })
+          zipFiles.unshift({ name: 'README.md', data: datasetCard })
 
-      const zipBuffer = buildZipBuffer(zipFiles)
+          // ── Step 3e: Pack into ZIP ─────────────────────────────────
+          emit({
+            step:    'building_zip',
+            message: 'Packing ZIP archive…',
+            detail:  `${zipFiles.length} file(s)`,
+          })
 
-      const { error: uploadErr } = await admin.storage
-        .from('dataset-exports')
-        .upload(exportPath, zipBuffer, { contentType: 'application/zip', upsert: true })
+          const zipBuffer = buildZipBuffer(zipFiles)
 
-      if (uploadErr) {
-        console.error('[download] ZIP upload error:', uploadErr)
-        return NextResponse.json({ error: 'Failed to build dataset package' }, { status: 500 })
+          // ── Step 3f: Upload ZIP to storage ─────────────────────────
+          emit({
+            step:    'uploading',
+            message: 'Uploading to secure storage…',
+            detail:  `${(zipBuffer.length / 1024 / 1024).toFixed(1)} MB`,
+          })
+
+          const { error: uploadErr } = await admin.storage
+            .from('dataset-exports')
+            .upload(exportPath, zipBuffer, { contentType: 'application/zip', upsert: true })
+
+          if (uploadErr) {
+            console.error('[download] ZIP upload error:', uploadErr)
+            emit({ step: 'error', message: 'Failed to upload dataset package', error: uploadErr.message })
+            close(); return
+          }
+
+          console.log(`[download] Package built: ${purchaseId}, ${clips.length} clips, ${zipBuffer.length} bytes`)
+        } else {
+          emit({ step: 'checking_cache', message: 'Using existing package…', detail: 'Package found in cache' })
+        }
+
+        // ── Step 4: Generate 24h signed URL ───────────────────────────
+        emit({ step: 'generating_url', message: 'Generating secure download link…' })
+
+        const { data: signedData, error: signErr } = await admin.storage
+          .from('dataset-exports')
+          .createSignedUrl(exportPath, EXPORT_TTL_SECONDS)
+
+        if (signErr || !signedData?.signedUrl) {
+          emit({ step: 'error', message: 'Failed to generate download link', error: signErr?.message ?? 'Unknown error' })
+          close(); return
+        }
+
+        // Track download
+        const newCount = (purchase.download_count ?? 0) + 1
+        const updateData: Record<string, unknown> = { download_count: newCount }
+        if (!purchase.downloaded_at) updateData.downloaded_at = new Date().toISOString()
+        await admin.from('dataset_purchases').update(updateData).eq('id', purchaseId)
+
+        await admin.from('audit_logs').insert({
+          user_id:       user.id,
+          action:        'dataset_download',
+          resource_type: 'dataset_purchases',
+          resource_id:   purchaseId,
+          details:       { sample_count: purchase.sample_count, price_usd: purchase.price_usd, download_count: newCount },
+        })
+
+        // Auto-delete package from storage after download (signed URL stays valid)
+        Promise.resolve().then(async () => {
+          try {
+            await admin.storage.from('dataset-exports').remove([exportPath])
+            await admin.from('dataset_purchases')
+              .update({ package_deleted_at: new Date().toISOString() })
+              .eq('id', purchaseId)
+            console.log(`[download] Auto-deleted package for ${purchaseId} after download #${newCount}`)
+          } catch (e) {
+            console.warn(`[download] Auto-delete failed for ${purchaseId}:`, e)
+          }
+        })
+
+        // ── Step 5: Done ───────────────────────────────────────────────
+        emit({
+          step:        'done',
+          message:     'Dataset ready!',
+          downloadUrl: signedData.signedUrl,
+          sampleCount: purchase.sample_count,
+          downloadCount: newCount,
+        })
+
+      } catch (err) {
+        console.error('[download] unhandled error:', err)
+        emit({ step: 'error', message: 'Unexpected error', error: err instanceof Error ? err.message : 'Internal server error' })
+      } finally {
+        close()
       }
-      console.log(`[download] Package built for ${purchaseId}: ${clips.length} clips, ${zipBuffer.length} bytes`)
-    }
+    },
+  })
 
-    // Generate signed URL
-    const { data: signedData, error: signErr } = await admin.storage
-      .from('dataset-exports')
-      .createSignedUrl(exportPath, EXPORT_TTL_SECONDS)
-
-    if (signErr || !signedData?.signedUrl) {
-      console.error('[download] signed URL error:', signErr)
-      return NextResponse.json({ error: 'Failed to generate download URL' }, { status: 500 })
-    }
-
-    // Track download
-    const newCount = (purchase.download_count ?? 0) + 1
-    const updateData: Record<string, unknown> = { download_count: newCount }
-    if (!purchase.downloaded_at) updateData.downloaded_at = new Date().toISOString()
-    await admin.from('dataset_purchases').update(updateData).eq('id', purchaseId)
-
-    await admin.from('audit_logs').insert({
-      user_id: user.id, action: 'dataset_download', resource_type: 'dataset_purchases', resource_id: purchaseId,
-      details: { sample_count: purchase.sample_count, price_usd: purchase.price_usd, download_count: newCount },
-    })
-
-    // Auto-delete package from storage after first download (signed URL remains valid)
-    Promise.resolve().then(async () => {
-      try {
-        await admin.storage.from('dataset-exports').remove([exportPath])
-        await admin.from('dataset_purchases').update({ package_deleted_at: new Date().toISOString() }).eq('id', purchaseId)
-        console.log(`[download] Auto-deleted package for ${purchaseId} after download #${newCount}`)
-      } catch (e) {
-        console.warn(`[download] Auto-delete failed for ${purchaseId}:`, e)
-      }
-    })
-
-    return NextResponse.json({
-      success: true, downloadUrl: signedData.signedUrl,
-      expiresAt: purchase.export_expires_at, sampleCount: purchase.sample_count,
-      priceUSD: purchase.price_usd, downloadCount: newCount, packageFormat: 'zip',
-    })
-
-  } catch (err) {
-    console.error('[marketplace/download] unhandled error:', err)
-    return NextResponse.json({ error: err instanceof Error ? err.message : 'Internal server error' }, { status: 500 })
-  }
+  return new Response(stream, {
+    headers: {
+      'Content-Type':      'text/event-stream',
+      'Cache-Control':     'no-cache, no-transform',
+      'Connection':        'keep-alive',
+      'X-Accel-Buffering': 'no',
+    },
+  })
 }

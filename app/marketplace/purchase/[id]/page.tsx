@@ -9,7 +9,7 @@ import { redirect, notFound } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import Link from 'next/link'
 import Topbar from '@/components/layouts/Topbar'
-import PurchaseDownloadButton from './components/PurchaseDownloadButton'
+import PrepareDatasetButton from './components/PurchaseDownloadButton'
 
 export default async function PurchasePage({
   params,
@@ -145,7 +145,7 @@ export default async function PurchasePage({
                 </div>
               </div>
 
-              <PurchaseDownloadButton purchaseId={purchaseId} />
+              <PrepareDatasetButton purchaseId={purchaseId} sampleCount={purchase.sample_count ?? 0} />
             </>
           )}
         </div>
