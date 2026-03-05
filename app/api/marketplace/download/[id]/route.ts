@@ -120,7 +120,7 @@ export async function GET(
 
         const { data: purchase, error: fetchErr } = await admin
           .from('dataset_purchases')
-          .select('id, buyer_id, payment_status, export_expires_at, downloaded_at, download_count, sample_count, price_usd, audio_clip_ids, package_deleted_at')
+          .select('id, buyer_id, payment_status, export_expires_at, downloaded_at, download_count, sample_count, price_usd, audio_clip_ids')
           .eq('id', purchaseId)
           .single()
 
@@ -140,10 +140,6 @@ export async function GET(
         }
         if (purchase.export_expires_at && new Date(purchase.export_expires_at) < new Date()) {
           emit({ step: 'error', message: 'Download window has expired', error: 'Link expired — contact support' })
-          close(); return
-        }
-        if (purchase.package_deleted_at) {
-          emit({ step: 'error', message: 'Package already downloaded and deleted', error: 'Request a new download link from support' })
           close(); return
         }
 
@@ -418,19 +414,6 @@ Audio is permanently pinned on IPFS. Retrieve any file directly:
           resource_type: 'dataset_purchases',
           resource_id:   purchaseId,
           details:       { sample_count: purchase.sample_count, price_usd: purchase.price_usd, download_count: newCount },
-        })
-
-        // Auto-delete package from storage after download (signed URL stays valid)
-        Promise.resolve().then(async () => {
-          try {
-            await admin.storage.from('dataset-exports').remove([exportPath])
-            await admin.from('dataset_purchases')
-              .update({ package_deleted_at: new Date().toISOString() })
-              .eq('id', purchaseId)
-            console.log(`[download] Auto-deleted package for ${purchaseId} after download #${newCount}`)
-          } catch (e) {
-            console.warn(`[download] Auto-delete failed for ${purchaseId}:`, e)
-          }
         })
 
         // ── Step 5: Done ───────────────────────────────────────────────
