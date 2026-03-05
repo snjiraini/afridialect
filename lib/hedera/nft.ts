@@ -46,6 +46,23 @@ import {
 import { getHederaClient, getTreasuryAccountId, getTreasuryPrivateKey } from './client'
 import { signForHedera, getHederaPublicKeyFromKMS, getPlatformGuardianKeyId } from '../aws/kms'
 
+/**
+ * Query the Hedera mirror node for the current on-chain owner of an NFT serial.
+ * Returns the account ID string (e.g. "0.0.123456") or null on any error.
+ */
+async function getNftCurrentOwner(tokenId: string, serial: number): Promise<string | null> {
+  const network = process.env.HEDERA_NETWORK === 'mainnet' ? 'mainnet' : 'testnet'
+  const url = `https://${network}.mirrornode.hedera.com/api/v1/tokens/${tokenId}/nfts/${serial}`
+  try {
+    const res = await fetch(url)
+    if (!res.ok) return null
+    const json = await res.json() as { account_id?: string }
+    return json.account_id ?? null
+  } catch {
+    return null
+  }
+}
+
 export interface MintCollectionResult {
   tokenId: string
   serialNumbers: number[]
@@ -328,13 +345,28 @@ export async function executeAtomicPurchaseBatch(
     //   Key 2 = platform guardian KMS key       (secp256k1, AWS KMS)
     // Both must sign the NFT return transfer.
     //
+    // Before building the return tx, check the mirror node for the actual
+    // on-chain owner of each serial. If treasury already holds it (e.g. from
+    // a previous partial purchase attempt), skip the return for that serial —
+    // it is already ready to burn.
+    //
     // Group by contributor to send all their NFTs in one tx.
     const transfersByContributor = new Map<
       string,
       { kmsKeyId: string; nftIds: NftId[] }
     >()
 
+    const treasuryStr = treasury.toString()
+
     for (const slot of burnSlots) {
+      const currentOwner = await getNftCurrentOwner(slot.tokenId, slot.serial)
+      if (currentOwner === treasuryStr) {
+        // Already at treasury — no return needed, burn directly in Step 2
+        console.log(
+          `[nft/purchase] Serial ${slot.serial} of ${slot.tokenId} already at treasury — skipping return`
+        )
+        continue
+      }
       const nftId = new NftId(TokenId.fromString(slot.tokenId), slot.serial)
       const existing = transfersByContributor.get(slot.contributorAccountId)
       if (existing) {

@@ -21,9 +21,12 @@ const { Client, AccountId, PrivateKey, TransferTransaction, Hbar, AccountBalance
 
 // ── Config ────────────────────────────────────────────────────────────────────
 
-const OPERATOR_ID  = process.env.HEDERA_OPERATOR_ACCOUNT_ID  || process.env.HEDERA_TREASURY_ACCOUNT_ID
-const OPERATOR_KEY = process.env.HEDERA_OPERATOR_PRIVATE_KEY || process.env.HEDERA_TREASURY_PRIVATE_KEY
+// const NETWORK      = process.env.HEDERA_NETWORK || 'testnet'
+// const OPERATOR_ID  = process.env.HEDERA_OPERATOR_ACCOUNT_ID  || process.env.HEDERA_TREASURY_ACCOUNT_ID
+// const OPERATOR_KEY = process.env.HEDERA_OPERATOR_PRIVATE_KEY || process.env.HEDERA_TREASURY_PRIVATE_KEY
 const NETWORK      = process.env.HEDERA_NETWORK || 'testnet'
+const OPERATOR_ID  = '0.0.5726078'
+const OPERATOR_KEY = ''
 
 // ── Args ──────────────────────────────────────────────────────────────────────
 
