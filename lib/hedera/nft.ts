@@ -12,14 +12,15 @@
  *  3. Transfer serials to contributor
  *  4. Return token ID, serial numbers, and transaction IDs
  *
- * NFT Burn (on purchase) — Atomic Batch:
+ * NFT Burn (on purchase) — Sequential Transactions:
  *  HTS NFTs held by contributor accounts cannot be burned directly.
- *  The correct on-chain flow, wrapped into a single atomic BatchTransaction, is:
- *    Inner Tx 1: TransferTransaction — contributor(s) → treasury for each NFT serial
- *    Inner Tx 2: TokenBurnTransaction × 3 (audio / transcript / translation)
- *    Inner Tx 3: TransferTransaction — buyer → contributors (HBAR revenue distribution)
- *  All inner transactions are frozen, signed independently, then submitted as one
- *  atomic batch via BatchTransaction.execute() — the network commits or reverts all.
+ *  The correct on-chain flow uses three sequential transactions:
+ *    Step 1: TransferTransaction — contributor(s) → treasury for each NFT serial
+ *    Step 2: TokenBurnTransaction × N (one per token collection)
+ *    Step 3: TransferTransaction — buyer → contributors (HBAR revenue distribution)
+ *  Note: Hedera BatchTransaction is incompatible with ThresholdKey (KeyList) accounts
+ *  on testnet — inner txs from ThresholdKey senders fail precheck with INVALID_SIGNATURE.
+ *  Sequential execution is used instead.
  *
  * Note: The operator account (treasury) signs all token operations.
  * Contributor Hedera accounts receive the NFTs via token transfers.
@@ -33,11 +34,9 @@ import {
   TokenBurnTransaction,
   TransferTransaction,
   TokenAssociateTransaction,
-  BatchTransaction,
   AccountId,
   TokenId,
   PrivateKey,
-  PublicKey,
   Hbar,
   CustomRoyaltyFee,
   CustomFixedFee,
@@ -264,35 +263,36 @@ export interface AtomicPurchaseBatchResult {
 // ──────────────────────────────────────────────────────────────────────────────
 
 /**
- * Execute the full purchase settlement as a single atomic BatchTransaction.
+ * Execute the full purchase settlement as sequential Hedera transactions.
  *
- * Why BatchTransaction?
- *   HTS NFTs held by contributor accounts cannot be burned directly — they must
- *   first be transferred back to the treasury (which holds the supply key), then
- *   burned. Doing this as separate sequential transactions risks partial failure
- *   (NFTs moved but not burned, or HBAR paid but NFTs not burned). Wrapping
- *   everything in a BatchTransaction guarantees network-level atomicity:
- *   all inner transactions commit or all revert together.
+ * Why sequential (not BatchTransaction)?
+ *   Hedera `BatchTransaction` is incompatible with `KeyList` / `ThresholdKey` accounts
+ *   on testnet. When a ThresholdKey account is the sender of an inner transaction,
+ *   the network rejects it with `INVALID_SIGNATURE` at precheck — regardless of key
+ *   type (confirmed with both KMS secp256k1 keys and plain local Ed25519 keys, so
+ *   this is a Hedera protocol restriction, not a signing bug).
  *
- * Inner transaction order (per clip, repeated for each purchased clip):
- *   Tx 1 … N  : TransferTransaction — contributor(s) → treasury  (one per unique contributor)
- *   Tx N+1 … M: TokenBurnTransaction — treasury burns one serial from each collection
- *   Tx Last   : TransferTransaction — buyer → all HBAR recipients (revenue distribution)
+ * Sequential execution order:
+ *   Step 1 — NFT return:        contributor(s) → treasury  (one tx per contributor)
+ *   Step 2 — TokenBurn:         treasury burns returned serials  (one tx per tokenId)
+ *   Step 3 — HBAR distribution: buyer → contributors + platform  (one tx)
  *
- * Signing requirements:
- *   - Each NFT-return TransferTx: contributor KMS key + guardian KMS key (ThresholdKey 2-of-2)
- *     The treasury also implicitly accepts because it is the receiving account.
- *   - Each TokenBurnTx: treasury supply key (PrivateKey)
- *   - HBAR TransferTx: buyer KMS key + guardian KMS key (buyer's ThresholdKey 2-of-2)
- *   - BatchTransaction outer envelope: operator (treasury / platform operator signs via execute())
+ * Signing strategy:
+ * ┌──────────────────────────────┬───────────────────────────────┬──────────┐
+ * │ Transaction                  │ Required signers              │ Method   │
+ * ├──────────────────────────────┼───────────────────────────────┼──────────┤
+ * │ NFT return (contrib→treas)   │ contributor KMS key (secp256k1│ signWith │
+ * │                              │ + guardian KMS key (secp256k1)│ signWith │
+ * ├──────────────────────────────┼───────────────────────────────┼──────────┤
+ * │ TokenBurnTransaction         │ treasury supply key (Ed25519) │ sign()   │
+ * ├──────────────────────────────┼───────────────────────────────┼──────────┤
+ * │ HBAR transfer (buyer→recips) │ buyer KMS key (secp256k1)     │ signWith │
+ * │                              │ + guardian KMS key (secp256k1)│ signWith │
+ * └──────────────────────────────┴───────────────────────────────┴──────────┘
  *
- * All inner transactions must have:
- *   1. setBatchKey(operatorPublicKey) called before freezeWith()
- *   2. freezeWith(client)
- *   3. signWith() / sign() for all required keys
- *   Then passed to BatchTransaction.addInnerTransaction().
+ * The returned `batchTransactionId` holds the HBAR distribution tx ID.
  *
- * @throws if any inner transaction fails or the batch does not reach consensus SUCCESS
+ * @throws if any step fails (e.g. NFTs already returned, insufficient HBAR balance)
  */
 export async function executeAtomicPurchaseBatch(
   params: AtomicPurchaseBatchParams
@@ -310,39 +310,39 @@ export async function executeAtomicPurchaseBatch(
     throw new Error('executeAtomicPurchaseBatch: nothing to execute')
   }
 
-  const client       = getHederaClient()
-  const treasury     = getTreasuryAccountId()
-  const treasuryKey  = getTreasuryPrivateKey()
+  const client = getHederaClient()
 
-  // The batch key is the operator's public key — every inner tx must declare it.
-  // The BatchTransaction itself is signed by the operator when we call execute().
-  const operatorPublicKey: PublicKey = treasuryKey.publicKey
+  // ── Treasury key (Ed25519, from .env.local) — supply key for token burn ──
+  const treasury    = getTreasuryAccountId()
+  const treasuryKey = getTreasuryPrivateKey()
 
-  const guardianKmsKeyId    = getPlatformGuardianKeyId()
-  const guardianPublicKey   = await getHederaPublicKeyFromKMS(guardianKmsKeyId)
+  // ── Guardian KMS key (secp256k1, Key 2 of every user ThresholdKey) ───────
+  const guardianKmsKeyId  = getPlatformGuardianKeyId()
+  const guardianPublicKey = await getHederaPublicKeyFromKMS(guardianKmsKeyId)
 
   try {
-    const batch = new BatchTransaction()
-
-    // ── Step 1: Build per-contributor NFT return TransferTransactions ────────
+    // ── Step 1: NFT return — contributor → treasury (one tx per contributor) ─
     //
-    // Group burn slots by contributor so we can combine multiple NFT transfers
-    // (audio + transcript + translation for the same contributor) into one tx,
-    // reducing the number of inner transactions and required signatures.
+    // Each contributor account is a ThresholdKey(2-of-2):
+    //   Key 1 = contributor's per-user KMS key  (secp256k1, AWS KMS)
+    //   Key 2 = platform guardian KMS key       (secp256k1, AWS KMS)
+    // Both must sign the NFT return transfer.
+    //
+    // Group by contributor to send all their NFTs in one tx.
     const transfersByContributor = new Map<
-      string, // contributorAccountId
+      string,
       { kmsKeyId: string; nftIds: NftId[] }
     >()
 
     for (const slot of burnSlots) {
-      const existing = transfersByContributor.get(slot.contributorAccountId)
       const nftId = new NftId(TokenId.fromString(slot.tokenId), slot.serial)
+      const existing = transfersByContributor.get(slot.contributorAccountId)
       if (existing) {
         existing.nftIds.push(nftId)
       } else {
         transfersByContributor.set(slot.contributorAccountId, {
           kmsKeyId: slot.contributorKmsKeyId,
-          nftIds: [nftId],
+          nftIds:   [nftId],
         })
       }
     }
@@ -352,8 +352,7 @@ export async function executeAtomicPurchaseBatch(
 
       const returnTx = new TransferTransaction()
         .setMaxTransactionFee(new Hbar(10))
-        .setTransactionMemo(`NFT return: ${contributorAccountId.slice(-6)} → treasury`)
-        .setBatchKey(operatorPublicKey)
+        .setTransactionMemo(`NFT return: …${contributorAccountId.slice(-6)} → treasury`)
 
       for (const nftId of nftIds) {
         returnTx.addNftTransfer(nftId, contributor, treasury)
@@ -361,26 +360,33 @@ export async function executeAtomicPurchaseBatch(
 
       returnTx.freezeWith(client)
 
-      // Contributor ThresholdKey (2-of-2): Key 1 = contributor KMS, Key 2 = guardian KMS
+      // Sign with contributor's KMS key (Key 1 of their ThresholdKey)
       const contributorPublicKey = await getHederaPublicKeyFromKMS(kmsKeyId)
-      await returnTx.signWith(contributorPublicKey, async (msg: Uint8Array) =>
-        signForHedera(kmsKeyId, msg)
+      await returnTx.signWith(
+        contributorPublicKey,
+        async (msg: Uint8Array) => signForHedera(kmsKeyId, msg)
       )
-      await returnTx.signWith(guardianPublicKey, async (msg: Uint8Array) =>
-        signForHedera(guardianKmsKeyId, msg)
+
+      // Sign with platform guardian KMS key (Key 2 of their ThresholdKey)
+      await returnTx.signWith(
+        guardianPublicKey,
+        async (msg: Uint8Array) => signForHedera(guardianKmsKeyId, msg)
       )
+
+      const returnResult = await returnTx.execute(client)
+      await returnResult.getReceipt(client)  // throws on non-SUCCESS
 
       console.log(
-        `[nft/batch] NFT return tx prepared: contributor ${contributorAccountId}, ` +
-        `${nftIds.length} NFT(s)`
+        `[nft/purchase] NFT return OK: contributor ${contributorAccountId}, ` +
+        `${nftIds.length} NFT(s) → treasury`
       )
-      batch.addInnerTransaction(returnTx)
     }
 
-    // ── Step 2: TokenBurnTransaction for each unique token ───────────────────
+    // ── Step 2: TokenBurn — treasury burns the returned serials ──────────────
     //
-    // Group serials by tokenId so one burn tx handles all serials of the same
-    // token (e.g. if multiple clips share a token collection — uncommon but safe).
+    // Only the supply key is required to burn HTS NFTs.
+    // The treasury Ed25519 key (from .env.local) is the supply key.
+    // Group by tokenId to minimise tx count.
     const burnsByToken = new Map<string, number[]>()
     for (const slot of burnSlots) {
       const existing = burnsByToken.get(slot.tokenId)
@@ -396,36 +402,42 @@ export async function executeAtomicPurchaseBatch(
         .setTokenId(TokenId.fromString(tokenId))
         .setSerials(serials.map((s) => Long.fromNumber(s)))
         .setMaxTransactionFee(new Hbar(10))
-        .setTransactionMemo(`Burn token ${tokenId.slice(-8)} serial(s) ${serials.join(',')}`)
-        .setBatchKey(operatorPublicKey)
+        .setTransactionMemo(`Burn …${tokenId.slice(-8)} serial(s) [${serials.join(',')}]`)
         .freezeWith(client)
 
-      // Only the supply key (treasury) is needed to burn
+      // Sign with treasury Ed25519 supply key (from .env.local)
       await burnTx.sign(treasuryKey)
 
+      const burnResult = await burnTx.execute(client)
+      await burnResult.getReceipt(client)  // throws on non-SUCCESS
+
       console.log(
-        `[nft/batch] Burn tx prepared: token ${tokenId}, ` +
-        `serials [${serials.join(', ')}]`
+        `[nft/purchase] Burn OK: token ${tokenId}, serials [${serials.join(', ')}]`
       )
-      batch.addInnerTransaction(burnTx)
     }
 
-    // ── Step 3: HBAR revenue distribution TransferTransaction ───────────────
+    // ── Step 3: HBAR distribution — buyer → contributors + platform ──────────
+    //
+    // The buyer account is a ThresholdKey(2-of-2):
+    //   Key 1 = buyer's per-user KMS key  (secp256k1, AWS KMS)
+    //   Key 2 = platform guardian KMS key  (secp256k1, AWS KMS)
+    // Both must sign the HBAR debit.
+    let settlementTxId = ''
+
     if (hbarRecipients.length > 0) {
       const buyer = AccountId.fromString(buyerHederaAccountId)
 
       const hbarTx = new TransferTransaction()
         .setMaxTransactionFee(new Hbar(10))
         .setTransactionMemo(memo)
-        .setBatchKey(operatorPublicKey)
 
-      // Debit buyer the full total
-      const totalTinybars = String(Math.round(totalHbar * 100_000_000))
-      hbarTx.addHbarTransfer(buyer, Hbar.fromTinybars('-' + totalTinybars))
+      // Debit buyer the full amount (integer tinybars to avoid float drift)
+      const totalTinybars = Math.round(totalHbar * 100_000_000)
+      hbarTx.addHbarTransfer(buyer, Hbar.fromTinybars(-totalTinybars))
 
       // Credit each recipient
       for (const r of hbarRecipients) {
-        const recipientTinybars = String(Math.round(r.amountHbar * 100_000_000))
+        const recipientTinybars = Math.round(r.amountHbar * 100_000_000)
         hbarTx.addHbarTransfer(
           AccountId.fromString(r.hederaAccountId),
           Hbar.fromTinybars(recipientTinybars)
@@ -434,43 +446,42 @@ export async function executeAtomicPurchaseBatch(
 
       hbarTx.freezeWith(client)
 
-      // Buyer ThresholdKey (2-of-2): Key 1 = buyer KMS, Key 2 = guardian KMS
+      // Sign with buyer's KMS key (Key 1 of their ThresholdKey)
       const buyerPublicKey = await getHederaPublicKeyFromKMS(buyerKmsKeyId)
-      await hbarTx.signWith(buyerPublicKey, async (msg: Uint8Array) =>
-        signForHedera(buyerKmsKeyId, msg)
-      )
-      await hbarTx.signWith(guardianPublicKey, async (msg: Uint8Array) =>
-        signForHedera(guardianKmsKeyId, msg)
+      await hbarTx.signWith(
+        buyerPublicKey,
+        async (msg: Uint8Array) => signForHedera(buyerKmsKeyId, msg)
       )
 
-      console.log(
-        `[nft/batch] HBAR distribution tx prepared: ` +
-        `${totalHbar.toFixed(8)} HBAR → ${hbarRecipients.length} recipient(s)`
+      // Sign with platform guardian KMS key (Key 2 of their ThresholdKey)
+      await hbarTx.signWith(
+        guardianPublicKey,
+        async (msg: Uint8Array) => signForHedera(guardianKmsKeyId, msg)
       )
-      batch.addInnerTransaction(hbarTx)
+
+      const hbarResult = await hbarTx.execute(client)
+      await hbarResult.getReceipt(client)  // throws on non-SUCCESS
+
+      settlementTxId = hbarResult.transactionId.toString()
+      console.log(
+        `[nft/purchase] HBAR distribution OK: ${totalHbar.toFixed(8)} HBAR ` +
+        `from buyer → ${hbarRecipients.length} recipient(s), tx: ${settlementTxId}`
+      )
     }
 
-    // ── Step 4: Execute the atomic batch ────────────────────────────────────
-    // The operator (treasury / platform account) pays the network fee for the
-    // outer BatchTransaction. execute() automatically signs with the operator key.
     console.log(
-      `[nft/batch] Submitting BatchTransaction with ` +
-      `${burnSlots.length} burn slot(s), ` +
+      `[nft/purchase] Purchase settlement complete: ` +
+      `${transfersByContributor.size} NFT-return tx(s), ` +
+      `${burnsByToken.size} burn tx(s), ` +
       `${hbarRecipients.length > 0 ? 1 : 0} HBAR distribution tx`
     )
 
-    const batchResult = await batch.execute(client)
-    const batchReceipt = await batchResult.getReceipt(client)
-
-    const batchTxId = batchResult.transactionId.toString()
-    console.log(`[nft/batch] Atomic batch SUCCESS: ${batchTxId}`)
-
-    return { batchTransactionId: batchTxId }
+    return { batchTransactionId: settlementTxId }
 
   } catch (error) {
-    console.error('[nft/batch] executeAtomicPurchaseBatch failed:', error)
+    console.error('[nft/purchase] executeAtomicPurchaseBatch failed:', error)
     throw new Error(
-      `Atomic purchase batch failed: ${error instanceof Error ? error.message : String(error)}`
+      `Purchase settlement failed: ${error instanceof Error ? error.message : String(error)}`
     )
   } finally {
     await client.close()
