@@ -9,14 +9,15 @@ import {
   PrivateKey,
   Hbar,
 } from '@hashgraph/sdk'
+import { getSecret } from '@/lib/secrets'
 
 /**
  * Get Hedera client configured for the appropriate network
  */
-export function getHederaClient(): Client {
+export async function getHederaClient(): Promise<Client> {
   const network = process.env.HEDERA_NETWORK || 'testnet'
-  const operatorId = process.env.HEDERA_OPERATOR_ACCOUNT_ID
-  const operatorKey = process.env.HEDERA_OPERATOR_PRIVATE_KEY
+  const operatorId = await getSecret('HEDERA_OPERATOR_ACCOUNT_ID').catch(() => undefined)
+  const operatorKey = await getSecret('HEDERA_OPERATOR_PRIVATE_KEY').catch(() => undefined)
 
   if (!operatorId || !operatorKey) {
     throw new Error(
@@ -58,10 +59,10 @@ export function getTreasuryAccountId(): AccountId {
 }
 
 /**
- * Get treasury private key
+ * Get treasury private key (resolves from secrets loader)
  */
-export function getTreasuryPrivateKey(): PrivateKey {
-  const treasuryKey = process.env.HEDERA_TREASURY_PRIVATE_KEY
+export async function getTreasuryPrivateKey(): Promise<PrivateKey> {
+  const treasuryKey = await getSecret('HEDERA_TREASURY_PRIVATE_KEY').catch(() => undefined)
 
   if (!treasuryKey) {
     throw new Error('HEDERA_TREASURY_PRIVATE_KEY not configured')

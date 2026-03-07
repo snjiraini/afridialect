@@ -22,7 +22,7 @@ export default async function TranscriberTaskPage({ params }: Props) {
     redirect('/auth/login')
   }
 
-  const admin = createAdminClient()
+  const admin = await createAdminClient()
 
   // Verify transcriber role
   const { data: role } = await admin

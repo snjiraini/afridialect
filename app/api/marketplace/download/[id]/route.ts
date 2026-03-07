@@ -116,7 +116,7 @@ export async function GET(
           close(); return
         }
 
-        const admin = createAdminClient()
+        const admin = await createAdminClient()
 
         const { data: purchase, error: fetchErr } = await admin
           .from('dataset_purchases')

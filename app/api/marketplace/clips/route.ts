@@ -32,7 +32,7 @@ export async function GET(request: NextRequest) {
     const limit         = Math.min(parseInt(searchParams.get('limit') ?? '50') || 50, 200)
     const offset        = parseInt(searchParams.get('offset') ?? '0') || 0
 
-    const admin = createAdminClient()
+    const admin = await createAdminClient()
 
     // ── Build base query ──────────────────────────────────────────────────
     let query = admin

@@ -46,7 +46,7 @@ function derToHederaPublicKey(derBytes: Uint8Array): PublicKey {
  * - Key 2: Platform Guardian key (from environment)
  */
 export async function createHederaAccount(userId: string): Promise<CreateAccountResult> {
-  const client = getHederaClient()
+  const client = await getHederaClient()
 
   try {
     // Step 1: Create user's KMS key
@@ -56,7 +56,7 @@ export async function createHederaAccount(userId: string): Promise<CreateAccount
 
     // Step 2: Get platform guardian public key
     console.log('Getting platform guardian key...')
-    const guardianKmsKeyId = getPlatformGuardianKeyId()
+    const guardianKmsKeyId = await getPlatformGuardianKeyId()
     const guardianPublicKeyDer = await getPublicKey(guardianKmsKeyId)
     console.log(`Platform guardian key: ${guardianKmsKeyId}`)
 
@@ -115,7 +115,7 @@ export async function createHederaAccount(userId: string): Promise<CreateAccount
  * Get account balance
  */
 export async function getAccountBalance(accountId: string): Promise<number> {
-  const client = getHederaClient()
+  const client = await getHederaClient()
 
   try {
     const accountInfo = await new AccountInfoQuery()
@@ -135,7 +135,7 @@ export async function getAccountBalance(accountId: string): Promise<number> {
  * Get account info
  */
 export async function getAccountInfo(accountId: string) {
-  const client = getHederaClient()
+  const client = await getHederaClient()
 
   try {
     const accountInfo = await new AccountInfoQuery()
@@ -168,7 +168,7 @@ export async function fundAccount(
   recipientAccountId: string,
   amount: number
 ): Promise<string> {
-  const client = getHederaClient()
+  const client = await getHederaClient()
 
   try {
     const transferTx = new TransferTransaction()
@@ -193,7 +193,7 @@ export async function fundAccount(
  * false if it is missing or has been deleted.
  */
 export async function isAccountActivated(accountId: string): Promise<boolean> {
-  const client = getHederaClient()
+  const client = await getHederaClient()
 
   try {
     const info = await new AccountInfoQuery()
@@ -239,7 +239,7 @@ export async function activateHederaAccount(
   accountId: string,
   activationHbar = 1
 ): Promise<string> {
-  const client = getHederaClient()
+  const client = await getHederaClient()
 
   try {
     console.log(`Activating Hedera account ${accountId} with ${activationHbar} HBAR...`)

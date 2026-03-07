@@ -23,7 +23,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const admin = createAdminClient()
+    const admin = await createAdminClient()
 
     // Verify translator role
     const { data: role } = await admin

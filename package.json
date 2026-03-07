@@ -15,10 +15,13 @@
     "test:auth": "node scripts/test-auth.js",
     "test:hedera": "./scripts/test-hedera-config.sh",
     "hedera:activate-accounts": "node scripts/activate-hedera-accounts.js",
+    "secrets:migrate": "./scripts/migrate_secrets.sh",
+    "secrets:migrate:dry-run": "./scripts/migrate_secrets.sh --dry-run",
     "db:setup": "echo '⚠️  Please run SQL files manually in Supabase Dashboard. See docs/DATABASE_SETUP.md'"
   },
   "dependencies": {
     "@aws-sdk/client-kms": "^3.995.0",
+    "@aws-sdk/client-secrets-manager": "^3.1004.0",
     "@hashgraph/sdk": "^2.80.0",
     "@supabase/ssr": "^0.8.0",
     "@supabase/supabase-js": "^2.97.0",

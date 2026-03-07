@@ -23,7 +23,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const admin = createAdminClient()
+    const admin = await createAdminClient()
     const userId = user.id
 
     // Check if user already has a Hedera account

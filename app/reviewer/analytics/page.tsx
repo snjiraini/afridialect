@@ -63,7 +63,7 @@ export default async function ReviewerAnalyticsPage() {
     redirect('/auth/login')
   }
 
-  const admin = createAdminClient()
+  const admin = await createAdminClient()
 
   // Require reviewer or admin role
   const { data: roles } = await admin

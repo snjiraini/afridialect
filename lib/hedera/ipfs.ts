@@ -4,6 +4,8 @@
  * Used as the last step before NFT minting.
  */
 
+import { getSecret } from '@/lib/secrets'
+
 export interface PinResult {
   cid: string
   pinSize: number
@@ -22,10 +24,10 @@ export interface NftMetadata {
  * Build Pinata base URL from environment.
  * Falls back gracefully so builds never break when keys are absent.
  */
-function getPinataJwt(): string {
-  const jwt = process.env.PINATA_JWT
+async function getPinataJwt(): Promise<string> {
+  const jwt = await getSecret('PINATA_JWT').catch(() => undefined)
   if (!jwt) {
-    throw new Error('PINATA_JWT is not configured in environment variables')
+    throw new Error('PINATA_JWT is not configured in environment variables or AWS Secrets Manager')
   }
   return jwt
 }

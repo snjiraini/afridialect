@@ -46,7 +46,7 @@ export default async function AdminAnalyticsPage() {
 
   if (!user) redirect('/auth/login')
 
-  const admin = createAdminClient()
+  const admin = await createAdminClient()
 
   const { data: roleRow } = await admin
     .from('user_roles')

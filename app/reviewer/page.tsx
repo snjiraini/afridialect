@@ -17,7 +17,7 @@ export default async function ReviewerPage() {
     redirect('/auth/login')
   }
 
-  const admin = createAdminClient()
+  const admin = await createAdminClient()
 
   // Verify reviewer role
   const { data: role } = await admin

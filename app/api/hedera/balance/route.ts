@@ -8,17 +8,18 @@
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { NextResponse } from 'next/server'
-import { Client, AccountBalanceQuery, AccountId } from '@hashgraph/sdk'
+import { Client, AccountBalanceQuery, AccountId, PrivateKey } from '@hashgraph/sdk'
+import { getSecret } from '@/lib/secrets'
 
-function getHederaClient(): Client {
+async function buildHederaClient(): Promise<Client> {
   const network  = process.env.HEDERA_NETWORK ?? 'testnet'
-  const operator = process.env.HEDERA_OPERATOR_ACCOUNT_ID
-  const key      = process.env.HEDERA_OPERATOR_PRIVATE_KEY
+  const operator = await getSecret('HEDERA_OPERATOR_ACCOUNT_ID').catch(() => undefined)
+  const key      = await getSecret('HEDERA_OPERATOR_PRIVATE_KEY').catch(() => undefined)
 
   if (!operator || !key) throw new Error('HEDERA_OPERATOR_ACCOUNT_ID / HEDERA_OPERATOR_PRIVATE_KEY not set')
 
   const client = network === 'mainnet' ? Client.forMainnet() : Client.forTestnet()
-  client.setOperator(operator, key)
+  client.setOperator(operator, PrivateKey.fromString(key))
   return client
 }
 
@@ -29,7 +30,7 @@ export async function GET() {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const admin = createAdminClient()
+  const admin = await createAdminClient()
   const { data: profile, error: profileErr } = await admin
     .from('profiles')
     .select('hedera_account_id')
@@ -40,7 +41,7 @@ export async function GET() {
     return NextResponse.json({ error: 'Hedera account not found for this user' }, { status: 404 })
   }
 
-  const client = getHederaClient()
+  const client = await buildHederaClient()
   try {
     const balance = await new AccountBalanceQuery()
       .setAccountId(AccountId.fromString(profile.hedera_account_id))

@@ -25,7 +25,7 @@ export default async function ReviewerTaskPage({ params }: Props) {
   }
 
   const { createAdminClient } = await import('@/lib/supabase/admin')
-  const admin = createAdminClient()
+  const admin = await createAdminClient()
 
   // Verify reviewer role
   const { data: role } = await admin

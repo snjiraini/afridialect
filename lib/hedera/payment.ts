@@ -141,7 +141,7 @@ export async function executePurchasePayment(
     throw new Error('executePurchasePayment: no recipients provided')
   }
 
-  const client = getHederaClient()
+  const client = await getHederaClient()
 
   try {
     const buyerAccount = AccountId.fromString(buyerHederaAccountId)
@@ -182,7 +182,7 @@ export async function executePurchasePayment(
     // ThresholdKey. We must sign with the guardian KMS key explicitly.
     const buyerHederaPublicKey    = await getHederaPublicKeyFromKMS(buyerKmsKeyId)
 
-    const guardianKmsKeyId        = getPlatformGuardianKeyId()
+    const guardianKmsKeyId        = await getPlatformGuardianKeyId()
     const guardianHederaPublicKey = await getHederaPublicKeyFromKMS(guardianKmsKeyId)
 
     // Sign with buyer KMS key (Key 1 of ThresholdKey)

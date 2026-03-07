@@ -16,7 +16,7 @@ async function requireAdmin() {
   const { data: { user }, error } = await supabase.auth.getUser()
   if (error || !user) return null
 
-  const admin = createAdminClient()
+  const admin = await createAdminClient()
   const { data: roleRow } = await admin
     .from('user_roles')
     .select('id')

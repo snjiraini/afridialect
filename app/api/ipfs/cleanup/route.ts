@@ -23,7 +23,7 @@ export async function POST(request: NextRequest) {
     const { data: { user }, error: authError } = await supabase.auth.getUser()
     if (authError || !user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-    const admin = createAdminClient()
+    const admin = await createAdminClient()
 
     const { data: roleRow } = await admin.from('user_roles').select('role').eq('user_id', user.id).eq('role', 'admin').single()
     if (!roleRow) return NextResponse.json({ error: 'Admin role required' }, { status: 403 })

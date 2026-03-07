@@ -23,7 +23,7 @@ export default async function TranslatorTaskPage({ params }: Props) {
     redirect('/auth/login')
   }
 
-  const admin = createAdminClient()
+  const admin = await createAdminClient()
 
   // Verify translator role
   const { data: role } = await admin

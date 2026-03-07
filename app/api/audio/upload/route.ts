@@ -41,7 +41,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const admin = createAdminClient()
+    const admin = await createAdminClient()
 
     // Check if user has uploader role
     const { data: role } = await admin

@@ -22,7 +22,7 @@ export async function POST(request: NextRequest) {
   }
 
   // Check if requesting user is admin
-  const adminSupabase = createAdminClient()
+  const adminSupabase = await createAdminClient()
   const { data: adminRole } = await adminSupabase
     .from('user_roles')
     .select('role')

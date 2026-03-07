@@ -94,9 +94,9 @@ async function createTokenCollection(
   metadataCid: string,
   maxSupply: number = NFT_MAX_SUPPLY
 ): Promise<{ tokenId: string; createTransactionId: string }> {
-  const client = getHederaClient()
+  const client = await getHederaClient()
   const treasury = getTreasuryAccountId()
-  const treasuryKey = getTreasuryPrivateKey()
+  const treasuryKey = await getTreasuryPrivateKey()
 
   try {
     const tx = new TokenCreateTransaction()
@@ -139,8 +139,8 @@ async function mintSerials(
   metadataCid: string,
   count: number = NFT_MAX_SUPPLY
 ): Promise<{ serialNumbers: number[]; mintTransactionIds: string[] }> {
-  const client = getHederaClient()
-  const treasuryKey = getTreasuryPrivateKey()
+  const client = await getHederaClient()
+  const treasuryKey = await getTreasuryPrivateKey()
   const BATCH_SIZE = 10 // HTS max metadata items per mint tx
 
   const allSerials: number[] = []
@@ -186,9 +186,9 @@ async function transferNftsToContributor(
   serialNumbers: number[],
   contributorAccountId: string
 ): Promise<string> {
-  const client = getHederaClient()
+  const client = await getHederaClient()
   const treasury = getTreasuryAccountId()
-  const treasuryKey = getTreasuryPrivateKey()
+  const treasuryKey = await getTreasuryPrivateKey()
   const contributor = AccountId.fromString(contributorAccountId)
   const token = TokenId.fromString(tokenId)
 
@@ -327,14 +327,14 @@ export async function executeAtomicPurchaseBatch(
     throw new Error('executeAtomicPurchaseBatch: nothing to execute')
   }
 
-  const client = getHederaClient()
+  const client = await getHederaClient()
 
   // ── Treasury key (Ed25519, from .env.local) — supply key for token burn ──
   const treasury    = getTreasuryAccountId()
-  const treasuryKey = getTreasuryPrivateKey()
+  const treasuryKey = await getTreasuryPrivateKey()
 
   // ── Guardian KMS key (secp256k1, Key 2 of every user ThresholdKey) ───────
-  const guardianKmsKeyId  = getPlatformGuardianKeyId()
+  const guardianKmsKeyId  = await getPlatformGuardianKeyId()
   const guardianPublicKey = await getHederaPublicKeyFromKMS(guardianKmsKeyId)
 
   try {

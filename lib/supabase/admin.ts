@@ -5,15 +5,18 @@
  */
 
 import { createClient } from '@supabase/supabase-js'
+import { getSecret } from '@/lib/secrets'
 
-export function createAdminClient() {
-  if (!process.env.SUPABASE_SECRET_KEY) {
+export async function createAdminClient() {
+  const secretKey = await getSecret('SUPABASE_SECRET_KEY').catch(() => undefined)
+
+  if (!secretKey) {
     throw new Error('SUPABASE_SECRET_KEY is not set')
   }
 
   return createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SECRET_KEY!,
+    secretKey,
     {
       auth: {
         autoRefreshToken: false,

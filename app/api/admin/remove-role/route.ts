@@ -19,7 +19,7 @@ export async function POST(request: NextRequest) {
     )
   }
 
-  const admin = createAdminClient()
+  const admin = await createAdminClient()
 
   // Check if requesting user is admin
   const { data: adminRole } = await admin

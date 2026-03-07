@@ -15,17 +15,32 @@ import {
 } from '@aws-sdk/client-kms'
 import { ec as EC } from 'elliptic'
 import { keccak_256 } from '@noble/hashes/sha3'
+import { getSecret } from '@/lib/secrets'
 
 const secp256k1 = new EC('secp256k1')
 
-// Initialize KMS client
-const kmsClient = new KMSClient({
-  region: process.env.AWS_REGION || 'us-east-1',
-  credentials: {
-    accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
-    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
-  },
-})
+// KMS client is lazily initialised after secrets are resolved.
+let _kmsClient: KMSClient | null = null
+
+async function getKmsClient(): Promise<KMSClient> {
+  if (_kmsClient) return _kmsClient
+
+  const [region, accessKeyId, secretAccessKey] = await Promise.all([
+    getSecret('AWS_REGION').catch(() => 'us-east-1'),
+    getSecret('AWS_ACCESS_KEY_ID'),
+    getSecret('AWS_SECRET_ACCESS_KEY'),
+  ])
+
+  _kmsClient = new KMSClient({
+    region,
+    credentials: { accessKeyId, secretAccessKey },
+  })
+
+  return _kmsClient
+}
+
+// Legacy sync reference retained for backward compat — lazily replaced at runtime.
+// All exported functions now call getKmsClient() internally.
 
 export interface CreateKeyResult {
   keyId: string
@@ -60,7 +75,8 @@ export async function createUserKey(userId: string): Promise<CreateKeyResult> {
       ],
     })
 
-    const { KeyMetadata } = await kmsClient.send(createKeyCommand)
+    const client = await getKmsClient()
+    const { KeyMetadata } = await client.send(createKeyCommand)
 
     if (!KeyMetadata?.KeyId || !KeyMetadata?.Arn) {
       throw new Error('Failed to create KMS key')
@@ -70,7 +86,7 @@ export async function createUserKey(userId: string): Promise<CreateKeyResult> {
     // Use full key ID suffix to guarantee uniqueness across users and retries.
     const alias = `alias/afridialect-user-${KeyMetadata.KeyId.slice(0, 8)}`
     try {
-      await kmsClient.send(
+      await client.send(
         new CreateAliasCommand({
           AliasName: alias,
           TargetKeyId: KeyMetadata.KeyId,
@@ -89,7 +105,7 @@ export async function createUserKey(userId: string): Promise<CreateKeyResult> {
       KeyId: KeyMetadata.KeyId,
     })
 
-    const { PublicKey } = await kmsClient.send(publicKeyCommand)
+    const { PublicKey } = await client.send(publicKeyCommand)
 
     if (!PublicKey) {
       throw new Error('Failed to retrieve public key')
@@ -112,7 +128,7 @@ export async function createUserKey(userId: string): Promise<CreateKeyResult> {
 export async function getPublicKey(keyId: string): Promise<Uint8Array> {
   try {
     const command = new GetPublicKeyCommand({ KeyId: keyId })
-    const response = await kmsClient.send(command)
+    const response = await (await getKmsClient()).send(command)
 
     if (!response.PublicKey) {
       throw new Error('Public key not found')
@@ -142,7 +158,7 @@ export async function signWithKMS(
       SigningAlgorithm: 'ECDSA_SHA_256',
     })
 
-    const { Signature } = await kmsClient.send(command)
+    const { Signature } = await (await getKmsClient()).send(command)
 
     if (!Signature) {
       throw new Error('Signature not returned')
@@ -171,7 +187,7 @@ export async function signWithKMS(
 export async function getHederaPublicKeyFromKMS(keyId: string): Promise<import('@hashgraph/sdk').PublicKey> {
   const { PublicKey } = await import('@hashgraph/sdk')
 
-  const response = await kmsClient.send(new GetPublicKeyCommand({ KeyId: keyId }))
+  const response = await (await getKmsClient()).send(new GetPublicKeyCommand({ KeyId: keyId }))
   if (!response.PublicKey) throw new Error(`KMS returned no public key for ${keyId}`)
 
   // The DER SubjectPublicKeyInfo for secp256k1 has a fixed 26-byte ASN.1 header.
@@ -211,7 +227,7 @@ export async function signForHedera(
   const hash = keccak_256(Buffer.from(message))
 
   // Step 2: Sign the digest with KMS (MessageType:'DIGEST' = KMS skips its own hashing)
-  const { Signature } = await kmsClient.send(new SignCommand({
+  const { Signature } = await (await getKmsClient()).send(new SignCommand({
     KeyId: keyId,
     Message: hash,
     MessageType: 'DIGEST',
@@ -254,7 +270,7 @@ export async function signForHedera(
 export async function describeKey(keyId: string) {
   try {
     const command = new DescribeKeyCommand({ KeyId: keyId })
-    const response = await kmsClient.send(command)
+    const response = await (await getKmsClient()).send(command)
     return response.KeyMetadata
   } catch (error) {
     console.error('Error describing key:', error)
@@ -271,7 +287,7 @@ export async function scheduleKeyDeletion(
   pendingWindowInDays: number = 7
 ): Promise<void> {
   try {
-    await kmsClient.send(
+    await (await getKmsClient()).send(
       new ScheduleKeyDeletionCommand({
         KeyId: keyId,
         PendingWindowInDays: pendingWindowInDays,
@@ -284,14 +300,14 @@ export async function scheduleKeyDeletion(
 }
 
 /**
- * Get the platform guardian key ID from environment
+ * Get the platform guardian key ID from environment / AWS Secrets Manager
  * This is the second key in the ThresholdKey (2-of-2)
  */
-export function getPlatformGuardianKeyId(): string {
-  const keyId = process.env.AWS_KMS_KEY_ID
+export async function getPlatformGuardianKeyId(): Promise<string> {
+  const keyId = await getSecret('AWS_KMS_KEY_ID')
 
   if (!keyId) {
-    throw new Error('AWS_KMS_KEY_ID not configured in environment')
+    throw new Error('AWS_KMS_KEY_ID not configured in environment or AWS Secrets Manager')
   }
 
   return keyId

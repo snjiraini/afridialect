@@ -20,7 +20,7 @@ export default async function AdminMintPage() {
     redirect('/auth/login')
   }
 
-  const admin = createAdminClient()
+  const admin = await createAdminClient()
 
   // Require admin role
   const { data: roleRow } = await admin

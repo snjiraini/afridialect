@@ -17,7 +17,7 @@ export async function GET() {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const admin = createAdminClient()
+    const admin = await createAdminClient()
 
     // Require admin role
     const { data: roleRow } = await admin

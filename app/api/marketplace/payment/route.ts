@@ -61,7 +61,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const admin = createAdminClient()
+    const admin = await createAdminClient()
 
     // ── 2. Parse body ────────────────────────────────────────────────────
     const body = await request.json() as { purchaseId: string }
@@ -427,7 +427,7 @@ export async function POST(request: NextRequest) {
        msg.includes('INSUFFICIENT_ACCOUNT_BALANCE'))
     ) {
       if (purchaseIdForErrorHandler) {
-        const admin = createAdminClient()
+        const admin = await createAdminClient()
         await admin
           .from('dataset_purchases')
           .update({ payment_status: 'failed' })

@@ -1414,3 +1414,106 @@ app/marketplace/purchase/[id]/page.tsx                  — Purchase detail page
 app/api/ipfs/cleanup/route.ts                           — POST endpoint: admin staging cleanup
 lib/supabase/migrations/phase10_download.sql            — Adds download_count + package_deleted_at columns to dataset_purchases
 ```
+
+---
+
+## AWS Secrets Manager Integration
+
+**Last Updated:** March 7, 2026
+
+### Overview
+
+All sensitive server-side secrets are loaded through a unified secrets loader (`lib/secrets/index.ts`). The loader follows a clear priority order so local development with `.env.local` works without any AWS configuration, while production instances pull secrets from AWS Secrets Manager.
+
+### Priority Order
+
+```
+1. process.env[KEY]          ← .env.local (Next.js auto-loads), CI injected vars
+2. AWS Secrets Manager       ← flat JSON secret, cached 5 min in memory
+3. SecretNotFoundError       ← thrown if absent from both sources
+```
+
+`NEXT_PUBLIC_*` variables are **never** fetched from AWS Secrets Manager — they are build-time browser constants that must be in the deployment environment.
+
+### Files Added / Changed
+
+| File | Change |
+|---|---|
+| `lib/secrets/index.ts` | **New** — unified secrets loader module |
+| `lib/aws/kms.ts` | KMS client now lazily initialised from secrets loader |
+| `lib/hedera/client.ts` | `getHederaClient()` / `getTreasuryPrivateKey()` now async |
+| `lib/hedera/ipfs.ts` | `getPinataJwt()` now async via secrets loader |
+| `lib/supabase/admin.ts` | `createAdminClient()` now async, reads `SUPABASE_SECRET_KEY` via loader |
+| `app/api/hedera/balance/route.ts` | Inline Hedera client uses secrets loader |
+| `scripts/migrate_secrets.sh` | **New** — uploads `.env.local` to Secrets Manager |
+| `scripts/secretsmanager-policy.json` | **New** — minimal IAM policy for `GetSecretValue` |
+| `.env.local.example` | **New** — safe-to-commit template |
+
+### Secret Structure in AWS
+
+Store all secrets as a single flat JSON object in one Secrets Manager secret:
+
+```json
+{
+  "AWS_KMS_KEY_ID": "arn:aws:kms:...",
+  "AWS_ACCESS_KEY_ID": "AKIA...",
+  "AWS_SECRET_ACCESS_KEY": "...",
+  "HEDERA_OPERATOR_PRIVATE_KEY": "302e...",
+  "HEDERA_TREASURY_PRIVATE_KEY": "302e...",
+  "PINATA_JWT": "eyJ...",
+  "SUPABASE_SECRET_KEY": "eyJ..."
+}
+```
+
+Default secret name: `afridialect/production/env`
+Override with `AWS_SECRET_ID` environment variable.
+
+### Local Development Setup
+
+No AWS configuration needed for local dev:
+
+```bash
+cp .env.local.example .env.local
+# Fill in your values — secrets loader reads process.env first
+npm run dev
+```
+
+### Migrating `.env.local` to AWS
+
+```bash
+# Dry run first to see what will be uploaded
+npm run secrets:migrate:dry-run
+
+# Upload (creates or updates the secret)
+npm run secrets:migrate -- --profile your-profile --region us-east-1
+```
+
+### Adding a New Secret
+
+1. Add the key to `.env.local.example` with a placeholder value
+2. Add the real value to your local `.env.local`
+3. Re-run `npm run secrets:migrate` to push to AWS
+4. Reference it in code: `const val = await getSecret('YOUR_KEY')`
+
+### Cache & Refresh
+
+Secrets are cached in memory for 5 minutes (configurable via `SECRETS_CACHE_TTL_MS`).
+To force a refresh in a long-running process:
+
+```typescript
+import { refreshSecrets } from '@/lib/secrets'
+refreshSecrets() // clears cache; next getSecret() re-fetches from AWS
+```
+
+### IAM Policy
+
+The minimal policy is in `scripts/secretsmanager-policy.json`. It grants only `GetSecretValue` and `DescribeSecret` on the specific secret ARNs. Replace `ACCOUNT_ID` with your AWS account ID before attaching.
+
+### Error Handling
+
+| Error Class | When Thrown |
+|---|---|
+| `SecretNotFoundError` | Key absent from env and AWS |
+| `SecretsAuthError` | AWS credentials invalid / missing |
+| `SecretsPermissionError` | IAM `AccessDeniedException` |
+| Generic Error | Network timeout after 3 retries with exponential back-off |

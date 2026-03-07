@@ -99,7 +99,7 @@ export async function POST(request: NextRequest) {
           close(); return
         }
 
-        const admin = createAdminClient()
+        const admin = await createAdminClient()
 
         // Check buyer role
         const { data: roleRow } = await admin

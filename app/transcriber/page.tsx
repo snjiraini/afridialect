@@ -17,7 +17,7 @@ export default async function TranscriberPage() {
     redirect('/auth/login')
   }
 
-  const admin = createAdminClient()
+  const admin = await createAdminClient()
 
   // Verify transcriber role
   const { data: role } = await admin
