@@ -40,7 +40,7 @@ export async function pinJsonToIPFS(
   metadata: NftMetadata,
   name: string
 ): Promise<PinResult> {
-  const jwt = getPinataJwt()
+  const jwt = await getPinataJwt()
 
   const body = JSON.stringify({
     pinataMetadata: { name },
@@ -80,7 +80,7 @@ export async function pinFileFromUrl(
   fileName: string,
   mimeType: string
 ): Promise<PinResult> {
-  const jwt = getPinataJwt()
+  const jwt = await getPinataJwt()
 
   // Download the file from signed URL
   const fileResponse = await fetch(signedUrl)
@@ -130,7 +130,7 @@ export async function pinFileFromUrl(
  * Returns true if pinned, false if not found.
  */
 export async function verifyPin(cid: string): Promise<boolean> {
-  const jwt = getPinataJwt()
+  const jwt = await getPinataJwt()
 
   const response = await fetch(
     `https://api.pinata.cloud/pinning/pinJobs?ipfs_pin_hash=${encodeURIComponent(cid)}&status=pinned&limit=1`,
@@ -168,7 +168,7 @@ export async function verifyPin(cid: string): Promise<boolean> {
  * Note: The content remains on IPFS until all other nodes unpin it.
  */
 export async function unpinFromIPFS(cid: string): Promise<void> {
-  const jwt = getPinataJwt()
+  const jwt = await getPinataJwt()
 
   const response = await fetch(
     `https://api.pinata.cloud/pinning/unpin/${encodeURIComponent(cid)}`,
