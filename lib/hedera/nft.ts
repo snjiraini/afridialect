@@ -95,7 +95,7 @@ async function createTokenCollection(
   maxSupply: number = NFT_MAX_SUPPLY
 ): Promise<{ tokenId: string; createTransactionId: string }> {
   const client = await getHederaClient()
-  const treasury = getTreasuryAccountId()
+  const treasury = await getTreasuryAccountId()
   const treasuryKey = await getTreasuryPrivateKey()
 
   try {
@@ -187,7 +187,7 @@ async function transferNftsToContributor(
   contributorAccountId: string
 ): Promise<string> {
   const client = await getHederaClient()
-  const treasury = getTreasuryAccountId()
+  const treasury = await getTreasuryAccountId()
   const treasuryKey = await getTreasuryPrivateKey()
   const contributor = AccountId.fromString(contributorAccountId)
   const token = TokenId.fromString(tokenId)
@@ -330,7 +330,7 @@ export async function executeAtomicPurchaseBatch(
   const client = await getHederaClient()
 
   // ── Treasury key (Ed25519, from .env.local) — supply key for token burn ──
-  const treasury    = getTreasuryAccountId()
+  const treasury    = await getTreasuryAccountId()
   const treasuryKey = await getTreasuryPrivateKey()
 
   // ── Guardian KMS key (secp256k1, Key 2 of every user ThresholdKey) ───────

@@ -28,6 +28,7 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
+import { getSecret } from '@/lib/secrets'
 import {
   buildClipRecipients,
   aggregateRecipients,
@@ -44,8 +45,8 @@ import {
 } from '@/lib/hedera/nft'
 
 // Platform treasury Hedera account — receives markup + fallback for missing contributors
-function getPlatformTreasuryId(): string {
-  const id = process.env.HEDERA_TREASURY_ACCOUNT_ID
+async function getPlatformTreasuryId(): Promise<string> {
+  const id = await getSecret('HEDERA_TREASURY_ACCOUNT_ID').catch(() => undefined)
   if (!id) throw new Error('HEDERA_TREASURY_ACCOUNT_ID not configured')
   return id
 }
@@ -124,7 +125,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const platformTreasuryId = getPlatformTreasuryId()
+    const platformTreasuryId = await getPlatformTreasuryId()
     const clipIds: string[] = purchase.audio_clip_ids ?? []
 
     // ── 5a. Load admin-configured payout structure ────────────────────────

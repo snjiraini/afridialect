@@ -23,6 +23,7 @@ import { createClient } from '@/lib/supabase/server'
 import { NextRequest } from 'next/server'
 import { PRICE_PER_SAMPLE_USD } from '@/types'
 import type { DatasetFilter } from '@/types'
+import { getSecret } from '@/lib/secrets'
 import {
   buildClipRecipients,
   aggregateRecipients,
@@ -39,8 +40,8 @@ import {
 
 const EXPORT_TTL_SECONDS = 24 * 60 * 60 // 24 hours
 
-function getPlatformTreasuryId(): string {
-  const id = process.env.HEDERA_TREASURY_ACCOUNT_ID
+async function getPlatformTreasuryId(): Promise<string> {
+  const id = await getSecret('HEDERA_TREASURY_ACCOUNT_ID').catch(() => undefined)
   if (!id) throw new Error('HEDERA_TREASURY_ACCOUNT_ID not configured')
   return id
 }
@@ -177,7 +178,7 @@ export async function POST(request: NextRequest) {
         const sampleCount = clips.length
         const priceUSD    = parseFloat((sampleCount * PRICE_PER_SAMPLE_USD).toFixed(2))
         const priceHBAR   = parseFloat((priceUSD / hbarRateUSD).toFixed(8))
-        const platformTreasuryId = getPlatformTreasuryId()
+        const platformTreasuryId = await getPlatformTreasuryId()
 
         // ── 5. Load payout structure ───────────────────────────────────
         emit({ step: 'loading_payout', message: 'Loading payout configuration…' })

@@ -48,8 +48,8 @@ export async function getHederaClient(): Promise<Client> {
 /**
  * Get treasury account ID
  */
-export function getTreasuryAccountId(): AccountId {
-  const treasuryId = process.env.HEDERA_TREASURY_ACCOUNT_ID
+export async function getTreasuryAccountId(): Promise<AccountId> {
+  const treasuryId = await getSecret('HEDERA_TREASURY_ACCOUNT_ID').catch(() => undefined)
 
   if (!treasuryId) {
     throw new Error('HEDERA_TREASURY_ACCOUNT_ID not configured')
@@ -74,8 +74,8 @@ export async function getTreasuryPrivateKey(): Promise<PrivateKey> {
 /**
  * Get operator account ID
  */
-export function getOperatorAccountId(): AccountId {
-  const operatorId = process.env.HEDERA_OPERATOR_ACCOUNT_ID
+export async function getOperatorAccountId(): Promise<AccountId> {
+  const operatorId = await getSecret('HEDERA_OPERATOR_ACCOUNT_ID').catch(() => undefined)
 
   if (!operatorId) {
     throw new Error('HEDERA_OPERATOR_ACCOUNT_ID not configured')
