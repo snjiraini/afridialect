@@ -264,7 +264,9 @@ export async function GET(
           const totalMinutes = Math.round(totalDurationSeconds / 60)
           const dialectList  = Array.from(dialectSet)
           const datasetCard  = `---
-license: cc-by-4.0
+license: other
+license_name: Afridialect Commercial Dataset License
+license_link: https://afridialect.ai/legal/dataset-license
 language:
 ${dialectList.map((d) => `  - ${d.toLowerCase().replace(/\s+/g, '-')}`).join('\n')}
 task_categories:
@@ -278,7 +280,12 @@ size_categories:
 
 **Purchase ID:** ${purchaseId}
 **Generated:** ${new Date().toISOString()}
-**License:** [CC-BY-4.0](https://creativecommons.org/licenses/by/4.0/)
+**Buyer:** ${user.email ?? user.id}
+**License:** Afridialect Commercial Dataset License (AI/ML Training Use Only)
+
+> ⚠️ **This dataset is licensed exclusively for AI/ML model training purposes.**
+> Redistribution, resale, sublicensing, or any use outside of model training is strictly prohibited.
+> See the [License Terms](#license-terms) section below.
 
 ## Dataset Summary
 
@@ -301,7 +308,7 @@ ${Object.entries(ageCounts).map(([a, c]) => `- ${a}: ${c} samples`).join('\n') |
 
 \`\`\`
 dataset.zip/
-├── README.md                            ← This dataset card
+├── README.md                            ← This dataset card & license terms
 ├── data.jsonl                           ← JSONL manifest (one record per sample)
 ├── audio/
 │   └── <clip-id>.<dialect>.<ext>        ← Audio files (from IPFS)
@@ -341,21 +348,53 @@ Audio is permanently pinned on IPFS. Retrieve any file directly:
 
 \`https://gateway.pinata.cloud/ipfs/{audio_cid}\`
 
-## Licensing
+## License Terms
 
-[Creative Commons Attribution 4.0 International (CC-BY-4.0)](https://creativecommons.org/licenses/by/4.0/)
+**Afridialect Commercial Dataset License — AI/ML Training Use Only**
 
-## Citation
+This dataset (including all audio files, transcriptions, translations, and metadata) is provided
+under a **restricted commercial license**. By downloading or using this dataset you agree to the
+following terms:
 
-\`\`\`bibtex
-@dataset{afridialect_${new Date().getFullYear()},
-  title     = {Afridialect AI/ML Dataset},
-  author    = {Afridialect Community Contributors},
-  year      = {${new Date().getFullYear()}},
-  url       = {https://afridialect.ai},
-  license   = {CC-BY-4.0}
-}
-\`\`\`
+### Permitted Uses ✅
+
+- Training, fine-tuning, evaluating, or benchmarking machine learning or AI models.
+- Internal research and development directly related to AI/ML model training.
+- Publishing academic research results derived from models trained on this data,
+  provided the dataset itself is not reproduced or shared.
+
+### Prohibited Uses ❌
+
+- **No redistribution:** You may not share, publish, upload, transfer, or otherwise distribute
+  this dataset or any portion of it to any third party, in any form, whether commercially or
+  for free.
+- **No resale or sublicensing:** You may not sell, rent, lease, sublicense, or otherwise
+  commercialise access to this dataset or any derivative dataset that substantially reproduces
+  its contents.
+- **No non-AI/ML use:** You may not use this dataset for purposes other than AI/ML model
+  training (e.g. content production, media, transcription services, or publishing the raw
+  audio or text).
+- **No public hosting:** You may not upload this dataset or its contents to any publicly
+  accessible repository, data platform, or storage service (including but not limited to
+  HuggingFace Hub, Kaggle, GitHub, or S3 public buckets).
+
+### Attribution
+
+When publishing research or model cards that reference training data sourced from Afridialect,
+include the following attribution:
+
+> *Dataset sourced from Afridialect AI (https://afridialect.ai). Used under commercial license
+> for AI/ML training purposes only.*
+
+### Enforcement
+
+Breach of these terms may result in immediate termination of your license, legal action, and
+a permanent ban from the Afridialect platform. Afridialect reserves the right to audit usage
+upon reasonable notice.
+
+For questions contact: **legal@afridialect.ai**
+
+© ${new Date().getFullYear()} Afridialect AI. All rights reserved.
 `
           zipFiles.unshift({ name: 'README.md', data: datasetCard })
 
@@ -368,16 +407,27 @@ Audio is permanently pinned on IPFS. Retrieve any file directly:
 
           const zipBuffer = buildZipBuffer(zipFiles)
 
-          // ── Step 3f: Upload ZIP to storage ─────────────────────────
+          console.log(`[download] Building ZIP: purchaseId=${purchaseId}, clips=${clips.length}, files=${zipFiles.length}, size=${(zipBuffer.length / 1024).toFixed(1)} KB`)
+
+          // ── Step 3f: Upload ZIP to storage (with retry) ───────────
           emit({
             step:    'uploading',
             message: 'Uploading to secure storage…',
             detail:  `${(zipBuffer.length / 1024 / 1024).toFixed(1)} MB`,
           })
 
-          const { error: uploadErr } = await admin.storage
-            .from('dataset-exports')
-            .upload(exportPath, zipBuffer, { contentType: 'application/zip', upsert: true })
+          const zipBlob = new Blob([zipBuffer.buffer as ArrayBuffer], { type: 'application/zip' })
+
+          let uploadErr: { message: string } | null = null
+          for (let attempt = 1; attempt <= 3; attempt++) {
+            const { error } = await admin.storage
+              .from('dataset-exports')
+              .upload(exportPath, zipBlob, { contentType: 'application/zip', upsert: true })
+            if (!error) { uploadErr = null; break }
+            uploadErr = error
+            console.warn(`[download] ZIP upload attempt ${attempt}/3 failed:`, error)
+            if (attempt < 3) await new Promise((r) => setTimeout(r, 1500 * attempt))
+          }
 
           if (uploadErr) {
             console.error('[download] ZIP upload error:', uploadErr)

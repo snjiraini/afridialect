@@ -133,14 +133,17 @@ export async function POST(request: NextRequest) {
         .update({ status: 'transcription_ready', approved_at: now, updated_at: now })
         .eq('id', task.audio_clip_id)
 
-      // Create transcription task
+      // Create transcription task — upsert so re-approvals don't throw 23505
       const { error: transcriptionTaskError } = await admin
         .from('tasks')
-        .insert({
-          audio_clip_id: task.audio_clip_id,
-          task_type: 'transcription',
-          status: 'available',
-        })
+        .upsert(
+          {
+            audio_clip_id: task.audio_clip_id,
+            task_type: 'transcription',
+            status: 'available',
+          },
+          { onConflict: 'audio_clip_id,task_type', ignoreDuplicates: true }
+        )
 
       if (transcriptionTaskError) {
         // Non-fatal: log but don't fail the decision
