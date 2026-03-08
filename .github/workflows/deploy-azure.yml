@@ -1,0 +1,105 @@
+name: Deploy to Azure Container Apps
+
+on:
+  push:
+    branches:
+      - main          # Production deploys on merge to main
+  workflow_dispatch:  # Allow manual trigger from GitHub Actions UI
+
+env:
+  # ── Azure infrastructure (matches live deployment) ────────────────────────
+  AZURE_RESOURCE_GROUP: afridialect-rg
+  AZURE_LOCATION: eastus
+  ACR_NAME: afridialectacr
+  ACR_SERVER: afridialectacr.azurecr.io
+  CONTAINER_APP_ENV: afridialect-env
+  CONTAINER_APP_NAME: afridialect-app
+  IMAGE_NAME: afridialect
+  # ── Live app URL ──────────────────────────────────────────────────────────
+  APP_FQDN: afridialect-app.kindsand-f9476255.eastus.azurecontainerapps.io
+
+jobs:
+  # ──────────────────────────────────────────────────────────────────────────
+  # Job 1: Build & push Docker image to Azure Container Registry via ACR Tasks
+  # (Runs in Azure — no local Docker daemon required)
+  # ──────────────────────────────────────────────────────────────────────────
+  build-and-push:
+    name: Build & Push Image
+    runs-on: ubuntu-latest
+
+    outputs:
+      image_tag: ${{ steps.meta.outputs.version }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Azure login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Generate image tag
+        id: meta
+        run: echo "version=$(echo ${{ github.sha }} | cut -c1-8)" >> $GITHUB_OUTPUT
+
+      # Build happens in Azure (ACR Tasks) — NEXT_PUBLIC_* are baked in at
+      # build time as they are browser-visible and not sensitive.
+      - name: Build and push image via ACR Tasks
+        run: |
+          az acr build \
+            --registry ${{ env.ACR_NAME }} \
+            --image ${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.version }} \
+            --image ${{ env.IMAGE_NAME }}:latest \
+            --build-arg "NEXT_PUBLIC_APP_URL=https://${{ env.APP_FQDN }}" \
+            --build-arg "NEXT_PUBLIC_SUPABASE_URL=${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}" \
+            --build-arg "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=${{ secrets.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}" \
+            --build-arg "NEXT_PUBLIC_PINATA_GATEWAY=${{ secrets.NEXT_PUBLIC_PINATA_GATEWAY }}" \
+            --build-arg "NEXT_PUBLIC_SENTRY_DSN=${{ secrets.NEXT_PUBLIC_SENTRY_DSN }}" \
+            --build-arg "NEXT_PUBLIC_GA_MEASUREMENT_ID=${{ secrets.NEXT_PUBLIC_GA_MEASUREMENT_ID }}" \
+            --build-arg "NEXT_PUBLIC_POSTHOG_KEY=${{ secrets.NEXT_PUBLIC_POSTHOG_KEY }}" \
+            --build-arg "NEXT_PUBLIC_POSTHOG_HOST=${{ secrets.NEXT_PUBLIC_POSTHOG_HOST }}" \
+            .
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # Job 2: Deploy updated image to Azure Container Apps
+  #
+  # Secret strategy:
+  #   - Azure Container App secrets hold ONLY the 3 AWS bootstrap credentials
+  #     (aws-access-key-id, aws-secret-access-key, aws-kms-key-id).
+  #   - All other app secrets (Hedera, Supabase service role, Pinata JWT, etc.)
+  #     remain in AWS Secrets Manager ("afridialect/production/env") and are
+  #     fetched at runtime by lib/secrets/index.ts. Nothing else touches Azure.
+  # ──────────────────────────────────────────────────────────────────────────
+  deploy:
+    name: Deploy to Container Apps
+    runs-on: ubuntu-latest
+    needs: build-and-push
+
+    steps:
+      - name: Azure login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Deploy updated image
+        run: |
+          az containerapp update \
+            --name ${{ env.CONTAINER_APP_NAME }} \
+            --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+            --image ${{ env.ACR_SERVER }}/${{ env.IMAGE_NAME }}:${{ needs.build-and-push.outputs.image_tag }} \
+            --set-env-vars \
+              NODE_ENV=production \
+              "NEXT_PUBLIC_APP_URL=https://${{ env.APP_FQDN }}" \
+              "NEXT_PUBLIC_SUPABASE_URL=${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}" \
+              "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=${{ secrets.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}" \
+              "NEXT_PUBLIC_PINATA_GATEWAY=${{ secrets.NEXT_PUBLIC_PINATA_GATEWAY }}" \
+              AWS_REGION=us-east-1 \
+              AWS_SECRET_ID=afridialect/production/env \
+              AWS_ACCESS_KEY_ID=secretref:aws-access-key-id \
+              AWS_SECRET_ACCESS_KEY=secretref:aws-secret-access-key \
+              AWS_KMS_KEY_ID=secretref:aws-kms-key-id
+
+      - name: Show deployment URL
+        run: |
+          echo "✅ Deployed: https://${{ env.APP_FQDN }}"
