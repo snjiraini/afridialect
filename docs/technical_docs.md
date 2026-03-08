@@ -1,6 +1,6 @@
 # Afridialect Technical Documentation
 
-**Last Updated:** March 4, 2026
+**Last Updated:** March 8, 2026
 
 ## Table of Contents
 
@@ -12,6 +12,7 @@
 6. [Proxy Configuration](#proxy-configuration)
 7. [Environment Variables](#environment-variables)
 8. [Database Schema Reference](#database-schema-reference)
+9. [Azure Container Apps Deployment](#azure-container-apps-deployment)
 
 ---
 
@@ -1172,6 +1173,194 @@ If you see `http://localhost:3000/auth/login?email=...&password=...`, this is NO
 **For questions or support:**
 - GitHub Issues: https://github.com/snjiraini/afridialect/issues
 - Email: support@afridialect.ai
+
+---
+
+## Azure Container Apps Deployment
+
+**Last Updated:** March 8, 2026
+
+### Overview
+
+Afridialect.ai is hosted on **Azure Container Apps** (consumption plan) with a 3-stage Docker build. The app scales to zero when idle and scales out to 3 replicas under load.
+
+| Resource | Name | Details |
+|---|---|---|
+| Resource Group | `afridialect-rg` | East US |
+| Container Registry | `afridialectacr` | Basic SKU (~$5/month) |
+| Container App Environment | `afridialect-env` | East US |
+| Container App | `afridialect-app` | 0.5 vCPU / 1 GiB RAM, 0–3 replicas |
+| **Live URL** | `https://afridialect-app.kindsand-f9476255.eastus.azurecontainerapps.io` | |
+
+### Secret Strategy
+
+Azure holds **only 3 secrets** — the minimum needed to bootstrap the AWS SDK so the app can reach AWS Secrets Manager at runtime:
+
+| Azure Secret Name | Maps to Env Var | Purpose |
+|---|---|---|
+| `aws-access-key-id` | `AWS_ACCESS_KEY_ID` | AWS SDK bootstrap |
+| `aws-secret-access-key` | `AWS_SECRET_ACCESS_KEY` | AWS SDK bootstrap |
+| `aws-kms-key-id` | `AWS_KMS_KEY_ID` | Platform guardian KMS key |
+
+All other secrets (Hedera keys, Supabase service role key, Pinata JWT, etc.) remain in **AWS Secrets Manager** (`afridialect/production/env`) and are fetched at runtime by `lib/secrets/index.ts`. Nothing else is stored in Azure.
+
+```
+Azure Container App (env vars)
+  ├── AWS_REGION              = us-east-1            (plain)
+  ├── AWS_SECRET_ID           = afridialect/production/env  (plain)
+  ├── AWS_ACCESS_KEY_ID       = secretref:aws-access-key-id
+  ├── AWS_SECRET_ACCESS_KEY   = secretref:aws-secret-access-key
+  ├── AWS_KMS_KEY_ID          = secretref:aws-kms-key-id
+  ├── NODE_ENV                = production            (plain)
+  ├── NEXT_PUBLIC_APP_URL     = https://afridialect-app...  (plain)
+  ├── NEXT_PUBLIC_SUPABASE_URL                        (plain)
+  ├── NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY            (plain)
+  └── NEXT_PUBLIC_PINATA_GATEWAY                      (plain)
+          │
+          ▼  lib/secrets/index.ts fetches at runtime
+  AWS Secrets Manager: "afridialect/production/env"
+  └── SUPABASE_SERVICE_ROLE_KEY, HEDERA_TREASURY_PRIVATE_KEY,
+      HEDERA_OPERATOR_PRIVATE_KEY, PINATA_JWT, etc.
+```
+
+### Docker Build
+
+**File:** `Dockerfile` (project root)
+
+Three-stage build:
+1. **deps** — installs `node_modules` with `npm ci --frozen-lockfile`
+2. **builder** — runs `npm run build`; `NEXT_PUBLIC_*` vars are baked in as build args (browser-visible, not sensitive)
+3. **runner** — copies only `.next/standalone` + `.next/static` + `public`; runs as non-root `nextjs` user
+
+`next.config.js` must have `output: 'standalone'` for the runner stage to work:
+
+```javascript
+const nextConfig = {
+  output: 'standalone',  // Required — produces .next/standalone/server.js
+  // ...
+}
+```
+
+The image is built in Azure via **ACR Tasks** (no local Docker daemon required) and pushed to `afridialectacr.azurecr.io`.
+
+**`.dockerignore`** excludes `node_modules/`, `.next/`, `.env*`, `docs/`, and `scripts/` from the build context.
+
+### CI/CD — GitHub Actions
+
+**File:** `.github/workflows/deploy-azure.yml`
+
+Triggers on every push to `main` (and manual `workflow_dispatch`).
+
+**Job 1 — Build & Push:**
+- Logs in to Azure with `AZURE_CREDENTIALS` service principal
+- Generates an 8-character image tag from the commit SHA
+- Builds and pushes the image via `az acr build` (runs entirely in Azure)
+- `NEXT_PUBLIC_*` values are passed as `--build-arg`s (hardcoded FQDN, secrets for Supabase/Pinata keys)
+
+**Job 2 — Deploy:**
+- Updates the Container App to the new image tag
+- Re-applies all 10 env vars (including `secretref:` bindings for AWS credentials)
+
+#### Required GitHub Repository Secrets
+
+Set these under **Settings → Secrets → Actions**:
+
+| Secret | Value |
+|---|---|
+| `AZURE_CREDENTIALS` | JSON from `az ad sp create-for-rbac` (see below) |
+| `NEXT_PUBLIC_SUPABASE_URL` | Supabase project URL |
+| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Supabase publishable key |
+| `NEXT_PUBLIC_PINATA_GATEWAY` | Pinata IPFS gateway hostname |
+| `NEXT_PUBLIC_SENTRY_DSN` | (optional) |
+| `NEXT_PUBLIC_GA_MEASUREMENT_ID` | (optional) |
+| `NEXT_PUBLIC_POSTHOG_KEY` | (optional) |
+| `NEXT_PUBLIC_POSTHOG_HOST` | (optional) |
+
+#### Create the `AZURE_CREDENTIALS` Secret
+
+```bash
+az ad sp create-for-rbac \
+  --name afridialect-github-actions \
+  --role contributor \
+  --scopes /subscriptions/6e46f572-be6f-4948-b863-5d8af207d91e/resourceGroups/afridialect-rg \
+  --sdk-auth
+```
+
+Copy the full JSON output and paste it as the `AZURE_CREDENTIALS` secret.
+
+### One-Time Infrastructure Setup
+
+**File:** `scripts/azure-setup.sh`
+
+Run **once** on a fresh Azure subscription to create all resources. After this, all deploys go through GitHub Actions.
+
+```bash
+# Export the 3 bootstrap secrets before running
+export AWS_ACCESS_KEY_ID=<your-key-id>
+export AWS_SECRET_ACCESS_KEY=<your-secret>
+export AWS_KMS_KEY_ID=<your-kms-key-id>
+
+chmod +x scripts/azure-setup.sh
+./scripts/azure-setup.sh
+```
+
+The script:
+1. Creates the resource group
+2. Creates the Azure Container Registry (Basic SKU)
+3. Builds and pushes the initial image via ACR Tasks
+4. Creates the Container Apps environment
+5. Creates the Container App (0–3 replicas, scale-to-zero, 0.5 vCPU / 1 GiB)
+6. Registers the 3 AWS bootstrap secrets
+7. Wires all env vars including `secretref:` bindings
+8. Prints the live URL and GitHub Actions setup instructions
+
+### Updating Azure Secrets (e.g. after key rotation)
+
+```bash
+# Update the secret value
+az containerapp secret set \
+  --name afridialect-app \
+  --resource-group afridialect-rg \
+  --secrets "aws-access-key-id=<NEW_KEY_ID>" \
+             "aws-secret-access-key=<NEW_SECRET>"
+
+# Restart to pick up the new secret
+az containerapp revision restart \
+  --name afridialect-app \
+  --resource-group afridialect-rg
+```
+
+### Checking Live App Status
+
+```bash
+# Running status + URL
+az containerapp show \
+  --name afridialect-app \
+  --resource-group afridialect-rg \
+  --query "{status: properties.runningStatus, url: properties.configuration.ingress.fqdn}" \
+  --output table
+
+# Tail live logs
+az containerapp logs show \
+  --name afridialect-app \
+  --resource-group afridialect-rg \
+  --follow
+
+# List all env vars (secret refs shown as redacted)
+az containerapp show \
+  --name afridialect-app \
+  --resource-group afridialect-rg \
+  --query "properties.template.containers[0].env" \
+  --output table
+```
+
+### Estimated Monthly Cost
+
+| Resource | Cost |
+|---|---|
+| Azure Container Apps (low traffic, scale-to-zero) | $0–$3 |
+| Azure Container Registry (Basic) | ~$5 |
+| **Total** | **~$5–$8/month** |
 
 ---
 
