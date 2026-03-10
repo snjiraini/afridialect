@@ -22,6 +22,7 @@ Key capabilities:
 - After QC passes, audio, transcripts, and translations are permanently pinned to IPFS via Pinata, and Hedera HTS NFTs are minted to represent contribution rights.
 - Buyers specify dataset constraints (dialect, speaker gender, age, duration, sample count), purchase in HBAR (displayed in USD), and receive a HuggingFace-compatible ZIP dataset built fresh from IPFS.
 - A single atomic Hedera `BatchTransaction` handles NFT return, NFT burn, and HBAR distribution to all contributors simultaneously.
+- Every contributor and buyer is automatically provisioned a Hedera account on signup. All on-chain transactions — NFT minting, HBAR payouts, and dataset purchases — are conducted through these platform-managed accounts. Users never handle wallet keys or HBAR directly. All account keys are generated and managed by Afridialect inside AWS KMS and never leave it.
 
 ---
 
@@ -306,6 +307,12 @@ afridialect/
 ---
 
 ## Security and Custody Model
+
+### Account Provisioning
+
+Every user — contributor or buyer — is automatically assigned a Hedera account the moment they sign up. Account creation is handled entirely server-side; users are not required to set up a wallet, install browser extensions, or manage seed phrases. All on-chain activity (NFT receipt, HBAR earnings, dataset purchases) flows through these internally created accounts.
+
+Each account's signing key is generated in AWS KMS and never exported. Afridialect manages the full key lifecycle on behalf of users.
 
 ### ThresholdKey (2-of-2)
 
