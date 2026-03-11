@@ -612,15 +612,15 @@
 
   color-scheme: dark;
   font-family: system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", sans-serif;
-  background: radial-gradient(circle at top, #121635 0, #050711 54%, #010108 100%);
+  /* All background layers combined — later declarations would override earlier ones */
+  background:
+    radial-gradient(circle at 0% 0%, rgba(244, 172, 84, 0.18), transparent 55%),
+    radial-gradient(circle at 100% 10%, rgba(45, 212, 191, 0.12), transparent 55%),
+    radial-gradient(circle at top, #121635 0, #050711 54%, #010108 100%);
+  background-attachment: fixed;
   color: var(--lp-text-main);
   -webkit-font-smoothing: antialiased;
   min-height: 100vh;
-  background-image:
-    radial-gradient(circle at 0% 0%, rgba(244, 172, 84, 0.18), transparent 55%),
-    radial-gradient(circle at 100% 10%, rgba(45, 212, 191, 0.12), transparent 55%);
-  background-repeat: no-repeat;
-  background-attachment: fixed;
 }
 
 .lp-root a {
@@ -630,6 +630,13 @@
 
 .lp-root button {
   font: inherit;
+}
+
+/* Ensure html/body don't show the app's light background behind the dark landing page */
+html:has(.lp-root),
+body:has(.lp-root) {
+  background: #050711;
+  color-scheme: dark;
 }
 
 /* ── Navigation ── */
