@@ -1,186 +1,525 @@
+'use client'
+
+/**
+ * Landing page — migrated visual design from "Afridialect Front end".
+ * All auth routes preserved: /auth/login and /auth/signup.
+ * No sidebar or app shell is rendered on this route (ConditionalSidebar / ConditionalContentShell handle that).
+ */
+
 import Link from 'next/link'
+import { CSSProperties, useEffect, useState } from 'react'
+import { motion, useReducedMotion } from 'framer-motion'
 
+/* ── Section animation variants ─────────────────────────────────────────── */
+const sectionVariants = {
+  hidden:  { opacity: 0, y: 40 },
+  visible: (i: number) => ({
+    opacity: 1,
+    y: 0,
+    transition: { duration: 0.7, delay: i * 0.06, ease: [0.21, 0.47, 0.32, 0.98] as const },
+  }),
+}
+
+/* ── Nav items (scroll links only — no page navigation) ─────────────────── */
+const NAV_ITEMS = [
+  { label: 'How it works',    href: '#how-it-works' },
+  { label: 'Dialects',        href: '#dialects' },
+  { label: 'Why Afridialect', href: '#why-afridialect' },
+]
+
+/* ── Stats ───────────────────────────────────────────────────────────────── */
+const STATS = [
+  { label: 'Audio samples',  value: '280k+',  hint: 'Studio-grade and in-the-wild recordings' },
+  { label: 'Contributors',   value: '3,200+', hint: 'Native speakers across the continent' },
+  { label: 'Dialects',       value: '40+',    hint: 'Spanning major African language families' },
+]
+
+/* ── How-it-works steps ──────────────────────────────────────────────────── */
+const STEPS = [
+  {
+    id: '01', title: 'Record audio',
+    body: 'Upload audio clips in Kikuyu or Swahili. Our system automatically chunks them into 30–40 s segments.',
+    pill: 'Microphone checks · noise filters',
+  },
+  {
+    id: '02', title: 'Transcribe & translate',
+    body: 'Help transcribe audio to text and translate to English. All work goes through rigorous quality checks.',
+    pill: 'Multi-pass review · QA scoring',
+  },
+  {
+    id: '03', title: 'Earn & get paid',
+    body: 'Receive NFTs representing your contribution. Get paid in HBAR when datasets are purchased.',
+    pill: 'Transparent earnings · payout history',
+  },
+]
+
+/* ── Dialect regions ─────────────────────────────────────────────────────── */
+const REGIONS = [
+  { region: 'East Africa',       accent: 'lp-card-dialect--east',  items: ['Swahili', 'Kikuyu', 'Luo', 'Amharic', 'Oromo', 'Somali'] },
+  { region: 'West Africa',       accent: 'lp-card-dialect--west',  items: ['Yorùbá', 'Hausa', 'Igbo', 'Twi', 'Ga', 'Wolof'] },
+  { region: 'Southern Africa',   accent: 'lp-card-dialect--south', items: ['Zulu', 'Xhosa', 'Sesotho', 'Shona', 'Afrikaans'] },
+  { region: 'Francophone & North', accent: 'lp-card-dialect--north', items: ['Maghrebi Arabic', 'Darija', 'Fulfulde', 'French-variant accents'] },
+]
+
+/* ── Powered-by tech list ────────────────────────────────────────────────── */
+const TECH = [
+  { name: 'Next.js',   logo: '/assets/logos/nextjs.svg',   url: 'https://nextjs.org/' },
+  { name: 'Hedera',    logo: '/assets/logos/hedera.svg',   url: 'https://hedera.com/' },
+  { name: 'IPFS',      logo: '/assets/logos/ipfs.svg',     url: 'https://ipfs.tech/' },
+  { name: 'Supabase',  logo: '/assets/logos/supabase.svg', url: 'https://supabase.com/' },
+  { name: 'AWS KMS',   logo: '/assets/logos/aws-kms.svg',  url: 'https://aws.amazon.com/kms/' },
+]
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Landing Page
+   ═══════════════════════════════════════════════════════════════════════════ */
 export default function Home() {
+  const prefersReducedMotion = useReducedMotion() ?? false
+
+  // Defer all motion-dependent branching until after hydration to avoid
+  // server/client HTML mismatch (useReducedMotion returns null on SSR).
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => { setMounted(true) }, [])
+
+  // Until mounted, treat as reduced-motion so SSR and first paint match.
+  const reduced = !mounted || prefersReducedMotion
+
+  const floatingAnimate = reduced ? undefined : { y: ['0%', '-8%', '0%'] }
+  const floatingTransitionProps = reduced
+    ? undefined
+    : { duration: 6, repeat: Infinity, repeatType: 'mirror' as const }
+
   return (
-    <div className="min-h-screen" style={{ background: 'var(--af-bg)' }}>
-      {/* ── Hero ── */}
-      <section
-        className="relative overflow-hidden"
-        style={{ background: 'linear-gradient(135deg, var(--af-primary-light) 0%, var(--af-bg) 60%)' }}
-      >
-        <div className="absolute inset-0 bg-grid-slate-100 opacity-40 pointer-events-none" />
-        <div className="container-modern py-24 md:py-32 relative z-10">
-          <div className="max-w-4xl mx-auto text-center">
-            <div
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-full mb-8 shadow-soft-sm text-sm font-medium"
-              style={{ background: 'var(--af-panel)', color: 'var(--af-txt)', border: '1px solid var(--af-line)' }}
-            >
-              <span className="relative flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full opacity-75" style={{ background: 'var(--af-primary)' }} />
-                <span className="relative inline-flex h-2 w-2 rounded-full" style={{ background: 'var(--af-primary)' }} />
-              </span>
-              Now Live: Kikuyu &amp; Swahili Datasets
+    <div className="lp-root">
+      {/* ── Navbar ── */}
+      <header className="lp-nav-root">
+        <motion.div
+          className="lp-nav-shell"
+          initial={{ opacity: 0, y: -24 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.7, ease: [0.21, 0.47, 0.32, 0.98] }}
+        >
+          {/* Brand */}
+          <a href="#top" className="lp-nav-brand">
+            <div className="lp-nav-mark">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/assets/logos/afridialect.svg" alt="Afridialect" className="lp-nav-logo-img" />
             </div>
-
-            <h1
-              className="text-5xl md:text-7xl font-bold mb-6 leading-tight"
-              style={{ fontFamily: 'Lexend, sans-serif', color: 'var(--af-txt)' }}
-            >
-              African Voice<br />
-              <span className="gradient-text">Datasets for AI</span>
-            </h1>
-
-            <p className="text-lg md:text-xl mb-12 max-w-2xl mx-auto leading-relaxed" style={{ color: 'var(--af-muted)' }}>
-              High-quality speech datasets in African local dialects.
-              Contribute, earn, and power the next generation of voice AI.
-            </p>
-
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-              <Link href="/marketplace" className="btn-primary text-base px-8 py-3">
-                Explore Datasets
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M13 7l5 5-5 5M6 12h12"/>
-                </svg>
-              </Link>
-              <Link href="/auth/signup" className="btn-secondary text-base px-8 py-3">
-                Start Contributing
-              </Link>
+            <div className="lp-nav-text">
+              <span className="lp-nav-title">Afridialect</span>
+              <span className="lp-nav-subtitle">African Speech Datasets</span>
             </div>
+          </a>
 
-            <div className="mt-20 grid grid-cols-3 gap-6 max-w-2xl mx-auto">
-              {[
-                { value: '10K+', label: 'Audio Samples' },
-                { value: '500+', label: 'Contributors' },
-                { value: '2',    label: 'Dialects' },
-              ].map((s) => (
-                <div key={s.label} className="af-card p-6 text-center">
-                  <div className="text-3xl font-bold mb-1" style={{ color: 'var(--af-primary)', fontFamily: 'Lexend, sans-serif' }}>
-                    {s.value}
-                  </div>
-                  <div className="text-sm" style={{ color: 'var(--af-muted)' }}>{s.label}</div>
+          {/* Scroll links */}
+          <nav className="lp-nav-links" aria-label="Primary">
+            {NAV_ITEMS.map((item) => (
+              <a key={item.href} href={item.href} className="lp-nav-link">{item.label}</a>
+            ))}
+          </nav>
+
+          {/* Auth actions — linked to real auth routes */}
+          <div className="lp-nav-actions">
+            <Link href="/auth/login" className="lp-btn lp-btn-outline">Login</Link>
+            <Link href="/auth/signup" className="lp-btn lp-btn-primary">Sign Up</Link>
+          </div>
+        </motion.div>
+      </header>
+
+      {/* ── Main content ── */}
+      <main className="lp-main" id="top">
+
+        {/* ── Hero ── */}
+        <section className="lp-hero-root">
+          <div className="lp-hero-grid">
+            {/* Copy */}
+            <div className="lp-hero-copy">
+              <motion.div
+                initial={{ opacity: 0, y: 24 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.7, ease: [0.21, 0.47, 0.32, 0.98] }}
+              >
+                <p className="lp-hero-kicker">African speech datasets for modern AI</p>
+                <h1 className="lp-hero-title">
+                  High-quality voice data in{' '}
+                  <span className="lp-hero-gradient">African local dialects</span>.
+                </h1>
+                <p className="lp-hero-body">
+                  Afridialect delivers curated speech datasets across African languages.
+                  Contribute, earn, and power the next generation of voice AI built for the continent.
+                </p>
+              </motion.div>
+
+              <motion.div
+                className="lp-hero-actions"
+                initial={{ opacity: 0, y: 24 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.6, delay: 0.15 }}
+              >
+                <Link href="/marketplace" className="lp-btn lp-btn-primary lp-btn-lg">Explore datasets</Link>
+                <Link href="/auth/signup" className="lp-btn lp-btn-outline lp-btn-lg">Start contributing</Link>
+              </motion.div>
+
+              <motion.div
+                className="lp-hero-meta"
+                initial={{ opacity: 0, y: 24 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.6, delay: 0.3 }}
+              >
+                <div className="lp-hero-meta-item">
+                  <span className="lp-hero-meta-label">Use cases</span>
+                  <span className="lp-hero-meta-value">ASR, agents, call centers, assistants</span>
                 </div>
+                <div className="lp-hero-meta-divider" />
+                <div className="lp-hero-meta-item">
+                  <span className="lp-hero-meta-label">Built for</span>
+                  <span className="lp-hero-meta-value">ML teams, AI labs, product builders</span>
+                </div>
+              </motion.div>
+            </div>
+
+            {/* Visual */}
+            <div className="lp-hero-visual-shell" aria-hidden="true">
+              <motion.div
+                className="lp-hero-visual-layer lp-hero-visual-orbit"
+                animate={reduced ? undefined : { rotate: 360 }}
+                transition={reduced ? undefined : { duration: 32, repeat: Infinity, ease: 'linear' }}
+              />
+              <motion.div
+                className="lp-hero-visual-layer lp-hero-visual-grid"
+                animate={floatingAnimate}
+                transition={floatingTransitionProps}
+              />
+              {/* Primary card */}
+              <motion.div
+                className="lp-hero-visual-layer lp-hero-visual-card"
+                initial={{ opacity: 0, y: 20, scale: 0.96 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                transition={{ duration: 0.7, delay: 0.2 }}
+              >
+                <div className="lp-hero-card-header">
+                  <span className="lp-hero-chip lp-hero-chip--accent">Live African speech</span>
+                  <span className="lp-hero-card-tag">Dataset preview</span>
+                </div>
+                <div className="lp-hero-waveform">
+                  {Array.from({ length: 32 }).map((_, i) => (
+                    <span key={i} className="lp-hero-wave-bar" style={{ '--i': i } as CSSProperties} />
+                  ))}
+                </div>
+                <div className="lp-hero-card-footer">
+                  <span>Swahili · Call center · 44kHz</span>
+                  <span className="lp-hero-card-value">12,480 validated clips</span>
+                </div>
+              </motion.div>
+              {/* Secondary card */}
+              <motion.div
+                className="lp-hero-visual-layer lp-hero-visual-card lp-hero-visual-card--secondary"
+                initial={{ opacity: 0, y: 26 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.6, delay: 0.35 }}
+              >
+                <div className="lp-hero-secondary-grid">
+                  {[
+                    { label: 'Contributors', value: '3,200+' },
+                    { label: 'Dialects',     value: '40+' },
+                    { label: 'Regions',      value: 'East · West · South' },
+                  ].map((s) => (
+                    <div key={s.label} className="lp-hero-secondary-item">
+                      <span className="lp-hero-secondary-label">{s.label}</span>
+                      <span className="lp-hero-secondary-value">{s.value}</span>
+                    </div>
+                  ))}
+                </div>
+              </motion.div>
+            </div>
+          </div>
+        </section>
+
+        {/* ── Stats strip ── */}
+        <section className="lp-stats-root" aria-label="Afridialect impact">
+          <div className="lp-stats-shell">
+            {STATS.map((stat, index) => (
+              <motion.div
+                key={stat.label}
+                className="lp-stat-card"
+                initial={{ opacity: 0, y: 24 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true, amount: 0.5 }}
+                transition={{ duration: 0.6, delay: index * 0.06, ease: [0.21, 0.47, 0.32, 0.98] }}
+              >
+                <div className="lp-stat-label">{stat.label}</div>
+                <div className="lp-stat-value">{stat.value}</div>
+                <div className="lp-stat-hint">{stat.hint}</div>
+              </motion.div>
+            ))}
+          </div>
+        </section>
+
+        {/* ── How it works ── */}
+        <motion.section
+          className="lp-section"
+          initial="hidden"
+          whileInView="visible"
+          viewport={{ once: true, amount: 0.3 }}
+          variants={sectionVariants}
+          custom={0}
+          id="how-it-works"
+        >
+          <div className="lp-section-shell">
+            <div className="lp-section-header">
+              <p className="lp-section-kicker">How it works</p>
+              <h2 className="lp-section-title">From local voices to production datasets.</h2>
+              <p className="lp-section-body">
+                Afridialect connects native speakers and ML teams through a high-trust
+                workflow—so every dataset is precise, compliant, and ready for training.
+              </p>
+            </div>
+            <div className="lp-section-grid lp-section-grid--three">
+              {STEPS.map((step, index) => (
+                <motion.article
+                  key={step.id}
+                  className="lp-card lp-card-step"
+                  initial={{ opacity: 0, y: 32 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true, amount: 0.4 }}
+                  transition={{ duration: 0.6, delay: index * 0.08, ease: [0.21, 0.47, 0.32, 0.98] }}
+                >
+                  <div className="lp-card-step-header">
+                    <span className="lp-card-step-id">{step.id}</span>
+                    <h3 className="lp-card-step-title">{step.title}</h3>
+                  </div>
+                  <p className="lp-card-step-body">{step.body}</p>
+                  <div className="lp-card-step-foot">
+                    <span className="lp-card-step-pill">{step.pill}</span>
+                  </div>
+                  <motion.div
+                    className="lp-card-orbit"
+                    animate={reduced ? undefined : { rotate: [0, 8, 0, -6, 0] }}
+                    transition={reduced ? undefined : { duration: 18, repeat: Infinity, ease: 'linear' }}
+                  />
+                </motion.article>
               ))}
             </div>
           </div>
-        </div>
+        </motion.section>
 
-        <div className="absolute top-20 left-10 w-64 h-64 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob pointer-events-none" style={{ background: 'var(--af-primary)' }} />
-        <div className="absolute top-40 right-10 w-64 h-64 rounded-full mix-blend-multiply filter blur-3xl opacity-15 animate-blob animation-delay-2000 pointer-events-none" style={{ background: '#5eead4' }} />
-      </section>
-
-      {/* ── How It Works ── */}
-      <section className="py-24" style={{ background: 'var(--af-panel)' }}>
-        <div className="container-modern">
-          <div className="text-center mb-16">
-            <h2 className="text-4xl md:text-5xl font-bold mb-4" style={{ fontFamily: 'Lexend, sans-serif', color: 'var(--af-txt)' }}>
-              How It Works
-            </h2>
-            <p className="text-lg" style={{ color: 'var(--af-muted)' }}>Simple steps to contribute and earn from African speech datasets</p>
-          </div>
-          <div className="grid md:grid-cols-3 gap-8">
-            {[
-              {
-                step: '01', title: 'Record Audio', iconBg: 'linear-gradient(135deg,var(--af-primary),var(--af-primary-soft))',
-                body: 'Upload audio clips in Kikuyu or Swahili. Our system automatically chunks them into 30–40 s segments.',
-                icon: <svg className="w-7 h-7 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"/></svg>,
-              },
-              {
-                step: '02', title: 'Transcribe & Translate', iconBg: 'linear-gradient(135deg,#6366f1,#8b5cf6)',
-                body: 'Help transcribe audio to text and translate to English. All work goes through rigorous quality checks.',
-                icon: <svg className="w-7 h-7 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>,
-              },
-              {
-                step: '03', title: 'Earn & Get Paid', iconBg: 'linear-gradient(135deg,#10b981,#059669)',
-                body: 'Receive NFTs representing your contribution. Get paid in HBAR when datasets are purchased.',
-                icon: <svg className="w-7 h-7 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>,
-              },
-            ].map((f) => (
-              <div key={f.step} className="af-card af-card-hover p-8 group">
-                <div className="flex items-start gap-4 mb-4">
-                  <div className="w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0 shadow-soft-md group-hover:scale-105 transition-transform duration-300" style={{ background: f.iconBg }}>
-                    {f.icon}
-                  </div>
-                  <span className="text-3xl font-bold opacity-10 mt-1" style={{ fontFamily: 'Lexend, sans-serif', color: 'var(--af-primary)' }}>{f.step}</span>
+        {/* ── Dialects ── */}
+        <motion.section
+          className="lp-section"
+          initial="hidden"
+          whileInView="visible"
+          viewport={{ once: true, amount: 0.3 }}
+          variants={sectionVariants}
+          custom={1}
+          id="dialects"
+        >
+          <div className="lp-section-shell" id="explore">
+            <div className="lp-section-header">
+              <p className="lp-section-kicker">Supported dialects</p>
+              <h2 className="lp-section-title">Coverage across the continent.</h2>
+              <p className="lp-section-body">
+                From major lingua francas to local dialects, Afridialect helps you train
+                models that actually understand how people speak in real life.
+              </p>
+            </div>
+            <div className="lp-section-layout">
+              {/* Decorative map */}
+              <div className="lp-dialect-map-shell" aria-hidden="true">
+                <motion.div
+                  className="lp-dialect-map-silhouette"
+                  animate={reduced ? undefined : { backgroundPosition: ['0% 0%', '100% 100%', '0% 0%'] }}
+                  transition={reduced ? undefined : { duration: 30, repeat: Infinity, ease: 'linear' }}
+                />
+                <div className="lp-dialect-map-grid">
+                  <span className="lp-dialect-node lp-dialect-node--west" />
+                  <span className="lp-dialect-node lp-dialect-node--east" />
+                  <span className="lp-dialect-node lp-dialect-node--south" />
+                  <span className="lp-dialect-node lp-dialect-node--north" />
                 </div>
-                <h3 className="text-xl font-semibold mb-3" style={{ fontFamily: 'Lexend, sans-serif', color: 'var(--af-txt)' }}>{f.title}</h3>
-                <p className="text-sm leading-relaxed" style={{ color: 'var(--af-muted)' }}>{f.body}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ── Dialects ── */}
-      <section className="py-24" style={{ background: 'var(--af-bg)' }}>
-        <div className="container-modern">
-          <div className="text-center mb-16">
-            <h2 className="text-4xl md:text-5xl font-bold mb-4" style={{ fontFamily: 'Lexend, sans-serif', color: 'var(--af-txt)' }}>
-              Supported Dialects
-            </h2>
-            <p className="text-lg" style={{ color: 'var(--af-muted)' }}>Starting with two major East African dialects</p>
-          </div>
-          <div className="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto">
-            {[
-              { flag: '🇰🇪', name: 'Kikuyu', region: 'Kenya • 8M+ speakers', samples: '2,500+ samples', desc: "One of Kenya's largest ethnic groups, Kikuyu is a Bantu language spoken primarily in central Kenya." },
-              { flag: '🌍', name: 'Swahili', region: 'East Africa • 200M+ speakers', samples: '7,500+ samples', desc: 'A major African language spoken across East Africa, serving as a lingua franca for the region.' },
-            ].map((d) => (
-              <div key={d.name} className="af-card af-card-hover p-8">
-                <div className="flex items-start gap-4 mb-5">
-                  <div className="w-12 h-12 rounded-xl flex items-center justify-center text-2xl flex-shrink-0" style={{ background: 'var(--af-primary-light)' }}>
-                    {d.flag}
+                <div className="lp-dialect-soundwave">
+                  <div className="lp-dialect-waveform">
+                    {Array.from({ length: 18 }).map((_, i) => (
+                      <span
+                        key={i}
+                        className="lp-dialect-wave-bar"
+                        style={{ '--i': i } as CSSProperties}
+                      />
+                    ))}
                   </div>
-                  <div>
-                    <h3 className="text-xl font-semibold" style={{ fontFamily: 'Lexend, sans-serif', color: 'var(--af-txt)' }}>{d.name}</h3>
-                    <p className="text-sm mt-0.5" style={{ color: 'var(--af-muted)' }}>{d.region}</p>
-                  </div>
-                </div>
-                <p className="text-sm leading-relaxed mb-5" style={{ color: 'var(--af-muted)' }}>{d.desc}</p>
-                <div className="flex items-center gap-3">
-                  <span className="badge badge-success">Active</span>
-                  <span className="text-sm" style={{ color: 'var(--af-muted)' }}>{d.samples}</span>
                 </div>
               </div>
-            ))}
-          </div>
-        </div>
-      </section>
 
-      {/* ── CTA ── */}
-      <section className="py-24 relative overflow-hidden" style={{ background: 'linear-gradient(135deg,var(--af-primary) 0%,#0f766b 100%)' }}>
-        <div className="absolute inset-0 bg-black/10 pointer-events-none" />
-        <div className="container-modern relative z-10">
-          <div className="max-w-3xl mx-auto text-center text-white">
-            <h2 className="text-4xl md:text-5xl font-bold mb-6" style={{ fontFamily: 'Lexend, sans-serif' }}>
-              Ready to Get Started?
-            </h2>
-            <p className="text-xl mb-10 text-white/85">
-              Join hundreds of contributors earning from African voice datasets
+              {/* Region cards */}
+              <div className="lp-section-grid lp-section-grid--two">
+                {REGIONS.map((region, index) => (
+                  <motion.article
+                    key={region.region}
+                    className={`lp-card lp-card-dialect ${region.accent}`}
+                    initial={{ opacity: 0, y: 32 }}
+                    whileInView={{ opacity: 1, y: 0 }}
+                    viewport={{ once: true, amount: 0.4 }}
+                    transition={{ duration: 0.6, delay: index * 0.08, ease: [0.21, 0.47, 0.32, 0.98] }}
+                  >
+                    <h3 className="lp-card-dialect-title">{region.region}</h3>
+                    <ul className="lp-card-dialect-list">
+                      {region.items.map((item) => (
+                        <li key={item} className="lp-card-dialect-item">
+                          <span className="lp-card-dialect-dot" />
+                          {item}
+                        </li>
+                      ))}
+                    </ul>
+                  </motion.article>
+                ))}
+              </div>
+            </div>
+          </div>
+        </motion.section>
+
+        {/* ── Why Afridialect ── */}
+        <motion.section
+          className="lp-section"
+          initial="hidden"
+          whileInView="visible"
+          viewport={{ once: true, amount: 0.3 }}
+          variants={sectionVariants}
+          custom={2}
+          id="why-afridialect"
+        >
+          <div className="lp-section-shell">
+            <div className="lp-section-header">
+              <p className="lp-section-kicker">Why Afridialect</p>
+              <h2 className="lp-section-title">Critical infrastructure for African voice AI.</h2>
+              <p className="lp-section-body">
+                Generic datasets miss local nuance—intonation, code-switching, blended languages,
+                and accents shaped by region. Afridialect is purpose-built to close that gap for AI teams.
+              </p>
+            </div>
+            <div className="lp-section-grid lp-section-grid--three">
+              {[
+                {
+                  title: 'Production-grade quality',
+                  body: 'Layered QA, human-in-the-loop review, and detailed metadata ensure that every sample is ready for training and evaluation—not just research prototypes.',
+                  bullets: ['Multi-speaker, multi-environment coverage', 'Fine-grained labels and transcription fidelity', 'Curated splits for training, validation, and test'],
+                },
+                {
+                  title: 'Built for ML teams',
+                  body: 'Simple access to datasets through consistent schemas, clear license terms, and documentation tailored to speech, ASR, and agent workloads.',
+                  bullets: ['Schema-aligned JSON and audio formats', 'Evaluation-ready benchmarks and baselines', 'Support for model iteration and fine-tuning'],
+                },
+                {
+                  title: 'Ethical & inclusive',
+                  body: 'Contributors are compensated fairly, communities have visibility, and governance around consent, usage, and privacy is built in from day one.',
+                  bullets: ['Clear contributor terms and payouts', 'Regional representation across the continent', 'Options for sensitive domain controls'],
+                },
+              ].map((card) => (
+                <article key={card.title} className="lp-card">
+                  <h3 className="lp-card-value-title">{card.title}</h3>
+                  <p className="lp-card-value-body">{card.body}</p>
+                  <ul className="lp-card-value-list">
+                    {card.bullets.map((b) => <li key={b}>{b}</li>)}
+                  </ul>
+                </article>
+              ))}
+            </div>
+          </div>
+        </motion.section>
+
+        {/* ── Final CTA ── */}
+        <motion.section
+          className="lp-section lp-section-final"
+          initial="hidden"
+          whileInView="visible"
+          viewport={{ once: true, amount: 0.3 }}
+          variants={sectionVariants}
+          custom={3}
+          id="get-started"
+        >
+          <div className="lp-section-shell lp-section-shell--final">
+            <div className="lp-section-header lp-section-header--center">
+              <p className="lp-section-kicker">Get started</p>
+              <h2 className="lp-section-title">Start building African-first voice AI.</h2>
+              <p className="lp-section-body">
+                Whether you are training ASR, agents, or evaluation pipelines, Afridialect gives
+                you a single, trusted layer for African speech data—while local contributors earn along the way.
+              </p>
+            </div>
+            <div className="lp-final-cta-actions">
+              <Link href="/marketplace" className="lp-btn lp-btn-primary lp-btn-lg">Explore datasets</Link>
+              <Link href="/auth/signup" className="lp-btn lp-btn-outline lp-btn-lg">Start contributing</Link>
+            </div>
+            <p className="lp-final-cta-footnote">
+              Need something specific?{' '}
+              <a href="mailto:hello@afridialect.ai" className="lp-link">Talk to us about custom datasets</a>.
             </p>
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-              <Link href="/auth/signup" className="bg-white font-semibold text-base px-8 py-3 rounded-xl shadow-soft-xl hover:bg-gray-50 transition-all duration-200 active:scale-95" style={{ color: 'var(--af-primary)' }}>
-                Create Account
-              </Link>
-              <Link href="/marketplace" className="text-white/90 border-2 border-white/30 font-semibold text-base px-8 py-3 rounded-xl hover:bg-white/15 transition-all duration-200">
-                Browse Datasets
-              </Link>
+          </div>
+        </motion.section>
+      </main>
+
+      {/* ── Powered by ── */}
+      <section className="lp-section-shell lp-poweredby-shell" style={{ margin: '32px 20px 0' }}>
+        <div className="lp-section-header--center">
+          <p className="lp-section-kicker">Powered by</p>
+        </div>
+        <div className="lp-poweredby-row" aria-label="Technology partners">
+          {TECH.map((t) => (
+            <a
+              key={t.name}
+              className="lp-poweredby-logo"
+              href={t.url}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={t.logo} alt={`${t.name} logo`} className="lp-poweredby-logo-img" />
+            </a>
+          ))}
+        </div>
+      </section>
+
+      {/* ── Footer ── */}
+      <footer className="lp-footer-root">
+        <div className="lp-footer-shell">
+          <div className="lp-footer-primary">
+            <div className="lp-footer-brand">
+              <div className="lp-footer-mark">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src="/assets/logos/afridialect.svg" alt="Afridialect" className="lp-footer-logo-img" />
+              </div>
+              <div>
+                <p className="lp-footer-title">Afridialect</p>
+                <p className="lp-footer-body">African Speech Datasets.</p>
+              </div>
+            </div>
+            <div className="lp-footer-links">
+              <div className="lp-footer-column">
+                <p className="lp-footer-column-title">Product</p>
+                <a href="#explore"      className="lp-footer-link">Datasets</a>
+                <a href="#how-it-works" className="lp-footer-link">How it works</a>
+              </div>
+              <div className="lp-footer-column">
+                <p className="lp-footer-column-title">Contributors</p>
+                <Link href="/auth/signup"                              className="lp-footer-link">Start contributing</Link>
+                <a href="mailto:contributors@afridialect.ai"           className="lp-footer-link">Contributor support</a>
+              </div>
+              <div className="lp-footer-column">
+                <p className="lp-footer-column-title">Account</p>
+                <Link href="/auth/login"  className="lp-footer-link">Login</Link>
+                <Link href="/auth/signup" className="lp-footer-link">Sign Up</Link>
+                <a href="mailto:hello@afridialect.ai" className="lp-footer-link">Contact</a>
+              </div>
+            </div>
+          </div>
+          <div className="lp-footer-secondary">
+            <p className="lp-footer-meta">© {new Date().getFullYear()} Afridialect. All rights reserved.</p>
+            <div className="lp-footer-meta-links">
+              <a href="#" className="lp-footer-link">Privacy</a>
+              <a href="#" className="lp-footer-link">Terms</a>
             </div>
           </div>
         </div>
-      </section>
-
-      {/* ── Powered by ── */}
-      <section className="py-14" style={{ background: 'var(--af-panel)', borderTop: '1px solid var(--af-line)' }}>
-        <div className="container-modern">
-          <p className="text-center text-xs font-semibold uppercase tracking-widest mb-8" style={{ color: 'var(--af-muted)' }}>
-            Powered by
-          </p>
-          <div className="flex flex-wrap items-center justify-center gap-10">
-            {['Next.js', 'Hedera', 'IPFS', 'Supabase', 'AWS KMS'].map((t) => (
-              <div key={t} className="text-xl font-bold opacity-30" style={{ color: 'var(--af-txt)' }}>{t}</div>
-            ))}
-          </div>
-        </div>
-      </section>
+      </footer>
     </div>
   )
 }
+
