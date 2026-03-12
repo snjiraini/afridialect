@@ -163,7 +163,7 @@ export default function TranslationQCForm({
         <div className="flex items-center gap-2 mb-4">
           <span
             className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold"
-            style={{ background: '#fef3c7', color: '#d97706' }}
+            style={{ background: 'rgba(245,181,93,0.15)', color: '#f5b55d' }}
           >
             Translation QC
           </span>

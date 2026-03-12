@@ -204,8 +204,8 @@ export default function DialectManagerClient({ initialDialects }: Props) {
                       }}
                       className="text-xs font-semibold px-3 py-1 rounded-lg transition-opacity"
                       style={{
-                        background: d.enabled ? '#fee2e2' : 'var(--af-primary-light)',
-                        color: d.enabled ? '#991b1b' : 'var(--af-primary)',
+                        background: d.enabled ? 'rgba(248,81,73,0.12)' : 'var(--af-primary-light)',
+                        color: d.enabled ? '#f85149' : 'var(--af-primary)',
                         opacity: toggleLoading === d.id ? 0.5 : 1,
                         cursor: toggleLoading === d.id ? 'wait' : 'pointer',
                       }}

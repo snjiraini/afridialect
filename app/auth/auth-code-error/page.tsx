@@ -30,10 +30,10 @@ export default function AuthCodeErrorPage() {
           <h2 style={{ fontSize: '20px', fontWeight: 700, color: '#f85149', marginBottom: '8px', fontFamily: "'Inter', system-ui, sans-serif" }}>
             Authentication Error
           </h2>
-          <p style={{ fontSize: '14px', color: '#6e7681', marginBottom: '16px' }}>
+          <p style={{ fontSize: '14px', color: '#7c84af', marginBottom: '16px' }}>
             We couldn&apos;t verify your authentication link. This may happen if:
           </p>
-          <ul style={{ fontSize: '14px', color: '#8b949e', textAlign: 'left', display: 'inline-block', marginBottom: '24px', listStyle: 'none', padding: 0 }}>
+          <ul style={{ fontSize: '14px', color: '#a8b0d8', textAlign: 'left', display: 'inline-block', marginBottom: '24px', listStyle: 'none', padding: 0 }}>
             {['The link has expired', 'The link was already used', 'The link was invalid'].map((item) => (
               <li key={item} style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
                 <span style={{ color: '#f85149', fontSize: '16px', lineHeight: 1 }}>•</span>
@@ -54,7 +54,7 @@ const pageStyle: React.CSSProperties = {
   minHeight: '100vh',
   display: 'flex', alignItems: 'center', justifyContent: 'center',
   padding: '48px 16px',
-  background: '#0d1117',
+  background: 'radial-gradient(ellipse 80% 60% at 50% -10%, rgba(255,139,61,0.12) 0%, transparent 60%), radial-gradient(ellipse 60% 40% at 80% 80%, rgba(38,198,218,0.07) 0%, transparent 55%), #050711',
   fontFamily: "'Inter', system-ui, -apple-system, sans-serif",
   position: 'relative', overflow: 'hidden',
 }
@@ -68,24 +68,24 @@ const glowCenter: React.CSSProperties = {
 
 const logoWrap: React.CSSProperties = {
   width: '44px', height: '44px', borderRadius: '12px', overflow: 'hidden',
-  background: 'rgba(245,166,35,0.1)', border: '1px solid rgba(245,166,35,0.2)',
+  background: 'rgba(245,181,93,0.1)', border: '1px solid rgba(245,181,93,0.2)',
   display: 'flex', alignItems: 'center', justifyContent: 'center',
 }
 
 const wordmark: React.CSSProperties = {
   fontFamily: "'Comfortaa', system-ui, sans-serif",
-  fontWeight: 700, fontSize: '20px', color: '#e6edf3',
+  fontWeight: 700, fontSize: '20px', color: '#f7f8ff',
 }
 
 const card: React.CSSProperties = {
-  background: '#161b22', border: '1px solid rgba(248,81,73,0.2)',
-  borderRadius: '16px', padding: '32px', backdropFilter: 'blur(12px)',
+  background: 'rgba(7,11,26,0.96)', border: '1px solid rgba(248,81,73,0.2)',
+  borderRadius: '24px', padding: '32px', backdropFilter: 'blur(20px)',
 }
 
 const linkBtn: React.CSSProperties = {
   display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-  padding: '11px 28px', borderRadius: '10px',
-  background: 'linear-gradient(135deg, #f5a623, #e8960e)',
-  color: '#0d1117', fontWeight: 700, fontSize: '14px', textDecoration: 'none',
-  boxShadow: '0 4px 16px rgba(245,166,35,0.3)',
+  padding: '11px 28px', borderRadius: '999px',
+  background: 'linear-gradient(135deg, #ff8b3d, #f5b55d)',
+  color: '#050711', fontWeight: 700, fontSize: '14px', textDecoration: 'none',
+  boxShadow: '0 4px 16px rgba(245,181,93,0.3)',
 }

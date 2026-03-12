@@ -249,7 +249,7 @@ export default function TranscriptionForm({
           {claimed && expiryLabel && (
             <span
               className="inline-flex items-center px-2.5 py-1 rounded text-xs font-medium ml-auto"
-              style={{ background: '#fef3c7', color: '#92400e' }}
+              style={{ background: 'rgba(245,181,93,0.15)', color: '#f5b55d' }}
             >
               ⏱ {expiryLabel}
             </span>

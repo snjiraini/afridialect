@@ -36,8 +36,16 @@ export default function ConditionalContentShell({
   // Authenticated app routes: offset by sidebar width
   return (
     <div
-      className="af-page-content min-h-screen overflow-x-hidden transition-colors duration-300"
-      style={{ marginLeft: 'var(--af-sidebar-w)' }}
+      className="min-h-screen overflow-x-hidden transition-colors duration-300"
+      style={{
+        marginLeft: 'var(--af-sidebar-w)',
+        background: [
+          'radial-gradient(circle at 0% 0%, rgba(244,172,84,0.06), transparent 50%)',
+          'radial-gradient(circle at 100% 10%, rgba(45,212,191,0.05), transparent 50%)',
+          'radial-gradient(circle at top, #0e1225 0, #050711 54%, #010108 100%)',
+        ].join(', '),
+        backgroundAttachment: 'fixed',
+      }}
     >
       {children}
     </div>

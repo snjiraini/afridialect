@@ -9,59 +9,65 @@
    DESIGN TOKENS  ·  Dark SaaS palette — near-black with amber accent
    ═══════════════════════════════════════════════════════════════════════════ */
 :root {
-  /* Primary accent — amber/orange */
-  --af-primary:         #f5a623;
-  --af-primary-soft:    #e8960e;
-  --af-primary-light:   rgba(245, 166, 35, 0.12);
-  --af-primary-hover:   #d4890c;
+  /* Primary accent — amber/gold (landing page: #f5b55d) */
+  --af-primary:         #f5b55d;
+  --af-primary-soft:    #ff8b3d;
+  --af-primary-light:   rgba(245, 181, 93, 0.12);
+  --af-primary-hover:   #e8960e;
 
-  /* Secondary accent — teal (used for highlights, gradients) */
+  /* Secondary accent — teal (landing page: #26c6da / #2dd4bf) */
   --af-teal:            #2dd4bf;
   --af-teal-soft:       rgba(45, 212, 191, 0.12);
 
-  /* Surfaces — GitHub-dark palette */
-  --af-bg:              #0d1117;
-  --af-panel:           #161b22;
-  --af-panel-raised:    #1c2333;
+  /* Surfaces — deep dark SaaS palette matching landing page */
+  --af-bg:              #050711;
+  --af-panel:           rgba(7,11,26,0.96);
+  --af-panel-raised:    rgba(10,13,28,0.98);
   --af-surface-raised:  rgba(255, 255, 255, 0.04);
 
   /* Sidebar */
-  --af-sidebar-from:    #161b22;
-  --af-sidebar-to:      #0d1117;
-  --af-sidebar-text:    #e6edf3;
+  --af-sidebar-from:    rgba(7,11,26,0.98);
+  --af-sidebar-to:      rgba(5,7,17,0.99);
+  --af-sidebar-text:    #f7f8ff;
 
-  /* Typography */
-  --af-txt:             #e6edf3;
-  --af-txt-secondary:   #8b949e;
-  --af-muted:           #6e7681;
+  /* Typography — landing page tokens */
+  --af-txt:             #f7f8ff;
+  --af-txt-secondary:   #a8b0d8;
+  --af-muted:           #7c84af;
 
-  /* Borders — GitHub-dark borders */
-  --af-line:            #30363d;
-  --af-line-strong:     #484f58;
+  /* Borders — glassmorphic landing page borders */
+  --af-line:            rgba(255, 255, 255, 0.06);
+  --af-line-strong:     rgba(255, 255, 255, 0.12);
 
   /* Interactive states */
   --af-search-bg:       rgba(255, 255, 255, 0.04);
-  --af-item-hover:      rgba(255, 255, 255, 0.06);
+  --af-item-hover:      rgba(255, 255, 255, 0.05);
 
   /* Scrollbar */
-  --af-scroll-thumb:    rgba(255, 255, 255, 0.15);
+  --af-scroll-thumb:    rgba(255, 255, 255, 0.12);
 
   /* Semantic */
-  --af-success:         #3fb950;
-  --af-warning:         #d29922;
+  --af-success:         #2dd4bf;
+  --af-warning:         #f5b55d;
   --af-danger:          #f85149;
-  --af-info:            #58a6ff;
+  --af-info:            #26c6da;
 
   /* Layout */
-  --af-radius:          14px;
-  --af-shadow:          0 16px 48px rgba(1, 4, 9, 0.8);
-  --af-shadow-card:     0 4px 16px rgba(1, 4, 9, 0.4), 0 1px 3px rgba(1, 4, 9, 0.3);
-  --af-shadow-lg:       0 8px 32px rgba(1, 4, 9, 0.5), 0 4px 12px rgba(1, 4, 9, 0.35);
+  --af-radius:          18px;
+  --af-shadow:          0 24px 80px rgba(0,0,0,0.7);
+  --af-shadow-card:     0 4px 24px rgba(0,0,0,0.5), 0 1px 3px rgba(0,0,0,0.4);
+  --af-shadow-lg:       0 8px 40px rgba(0,0,0,0.6), 0 4px 16px rgba(0,0,0,0.45);
   --af-sidebar-w:       264px;
   --af-topbar-h:        68px;
 
   /* Badge */
-  --af-badge-bg:        #f5a623;
+  --af-badge-bg:        #f5b55d;
+
+  /* Legacy accent-soft alias */
+  --af-accent-soft:     rgba(245, 181, 93, 0.12);
+
+  /* Success soft — used in QC forms */
+  --af-success-soft:    rgba(45, 212, 191, 0.12);
 
   color-scheme: dark;
 }
@@ -126,8 +132,8 @@
     border: 1px solid var(--af-line);
     border-radius: var(--af-radius);
     box-shadow: var(--af-shadow-card);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
     transition: background 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease, transform 0.2s ease;
   }
 
@@ -144,21 +150,21 @@
     justify-content: center;
     gap: 0.5rem;
     padding: 0.625rem 1.25rem;
-    border-radius: 0.75rem;
+    border-radius: 999px;
     font-size: 0.875rem;
     font-weight: 600;
-    background: linear-gradient(135deg, #f5a623, #e8960e);
-    color: #0d1117;
+    background: linear-gradient(135deg, #ff8b3d, #f5b55d);
+    color: #0a0712;
     border: none;
     cursor: pointer;
-    box-shadow: 0 4px 16px rgba(245, 166, 35, 0.3);
+    box-shadow: 0 16px 36px rgba(0,0,0,0.7);
     transition: all 0.2s ease;
     white-space: nowrap;
     text-decoration: none;
   }
   .btn-primary:hover {
-    background: linear-gradient(135deg, #fbbf24, #f5a623);
-    box-shadow: 0 6px 24px rgba(245, 166, 35, 0.45);
+    background: linear-gradient(135deg, #ffa060, #f5c070);
+    box-shadow: 0 20px 45px rgba(0,0,0,0.8);
     transform: translateY(-1px);
   }
   .btn-primary:active  { transform: scale(0.97); }
@@ -174,21 +180,20 @@
     justify-content: center;
     gap: 0.5rem;
     padding: 0.625rem 1.25rem;
-    border-radius: 0.75rem;
+    border-radius: 999px;
     font-size: 0.875rem;
     font-weight: 600;
-    background: rgba(255, 255, 255, 0.06);
-    color: var(--af-txt);
-    border: 1px solid var(--af-line-strong);
+    background: rgba(8,11,24,0.6);
+    color: #f7f8ff;
+    border: 1px solid rgba(255,255,255,0.16);
     cursor: pointer;
     transition: all 0.2s ease;
     white-space: nowrap;
     text-decoration: none;
   }
   .btn-secondary:hover {
-    background: rgba(255, 255, 255, 0.1);
-    border-color: var(--af-primary);
-    color: var(--af-primary);
+    background: rgba(10,13,28,0.9);
+    border-color: rgba(255,255,255,0.32);
     transform: translateY(-1px);
   }
   .btn-secondary:active  { transform: scale(0.97); }
@@ -329,18 +334,18 @@
   }
 
   .badge-primary {
-    background: rgba(245, 166, 35, 0.15);
-    color: var(--af-primary);
+    background: rgba(245, 181, 93, 0.15);
+    color: #f5b55d;
   }
 
   .badge-success {
-    background: rgba(16, 185, 129, 0.15);
-    color: #34d399;
+    background: rgba(45, 212, 191, 0.15);
+    color: #2dd4bf;
   }
 
   .badge-warning {
-    background: rgba(245, 158, 11, 0.15);
-    color: #fbbf24;
+    background: rgba(255, 139, 61, 0.15);
+    color: #ff8b3d;
   }
 
   .badge-danger {
@@ -361,18 +366,18 @@
     display: grid;
     place-items: center;
     border-radius: 0.75rem;
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    background: rgba(255, 255, 255, 0.05);
-    color: var(--af-muted);
+    border: 1px solid rgba(255,255,255,0.08);
+    background: rgba(255,255,255,0.04);
+    color: #a8b0d8;
     cursor: pointer;
     transition: all 0.2s ease;
     flex-shrink: 0;
   }
   .af-icon-btn:hover {
     transform: translateY(-2px);
-    background: rgba(245, 166, 35, 0.1);
-    border-color: rgba(245, 166, 35, 0.3);
-    color: var(--af-primary);
+    background: rgba(245,181,93,0.12);
+    border-color: rgba(245,181,93,0.3);
+    color: #f5b55d;
   }
 
   /* ── Nav items (sidebar) ── */
@@ -384,22 +389,22 @@
     border-radius: 0.75rem;
     font-size: 0.875rem;
     font-weight: 500;
-    color: var(--af-txt-secondary);
+    color: #a8b0d8;
     cursor: pointer;
     transition: background 0.2s ease, color 0.2s ease, transform 0.2s ease;
     text-decoration: none;
     user-select: none;
   }
   .af-nav-item:hover {
-    background: rgba(245, 166, 35, 0.08);
-    color: var(--af-txt);
+    background: rgba(245,181,93,0.08);
+    color: #f7f8ff;
     transform: translateX(3px);
   }
   .af-nav-item.active {
-    background: rgba(245, 166, 35, 0.12);
-    color: #f5a623;
+    background: rgba(245,181,93,0.12);
+    color: #f5b55d;
     font-weight: 600;
-    border: 1px solid rgba(245, 166, 35, 0.2);
+    border: 1px solid rgba(245,181,93,0.2);
   }
 
   /* ── Avatar circle ── */
@@ -410,14 +415,14 @@
     font-weight: 700;
     font-size: 0.875rem;
     flex-shrink: 0;
-    background: linear-gradient(135deg, rgba(245, 166, 35, 0.3), rgba(232, 150, 14, 0.2));
-    color: var(--af-primary);
-    border: 1px solid rgba(245, 166, 35, 0.3);
+    background: linear-gradient(135deg, rgba(255,139,61,0.3), rgba(245,181,93,0.2));
+    color: #f5b55d;
+    border: 1px solid rgba(245,181,93,0.3);
   }
 
   /* ── Gradient text ── */
   .gradient-text {
-    background: linear-gradient(135deg, var(--af-primary), var(--af-accent));
+    background: linear-gradient(120deg, #fbbf77, #f97316, #2dd4bf);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
@@ -432,10 +437,10 @@
 
   /* ── Glass panel ── */
   .glass {
-    background: rgba(22, 27, 34, 0.85);
-    backdrop-filter: blur(16px);
-    -webkit-backdrop-filter: blur(16px);
-    border: 1px solid var(--af-line);
+    background: rgba(7,11,26,0.94);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(255,255,255,0.06);
   }
 
   /* ── Page content shell (offset from sidebar) ── */
@@ -443,9 +448,10 @@
     margin-left: var(--af-sidebar-w);
     min-height: 100vh;
     background:
-      radial-gradient(ellipse at 80% 20%, rgba(245, 166, 35, 0.03), transparent 50%),
-      radial-gradient(ellipse at 20% 80%, rgba(45, 212, 191, 0.03), transparent 50%),
-      var(--af-bg);
+      radial-gradient(circle at 0% 0%, rgba(244,172,84,0.06), transparent 50%),
+      radial-gradient(circle at 100% 10%, rgba(45,212,191,0.05), transparent 50%),
+      radial-gradient(circle at top, #0e1225 0, #050711 54%, #010108 100%);
+    background-attachment: fixed;
     transition: background 0.4s ease;
   }
 
@@ -465,7 +471,7 @@
     border-radius: var(--af-radius);
     padding: 1.5rem;
     box-shadow: var(--af-shadow-card);
-    backdrop-filter: blur(12px);
+    backdrop-filter: blur(16px);
     transition: all 0.3s ease;
   }
   .stat-card:hover {
@@ -483,9 +489,9 @@
     border-radius: 0.75rem;
     font-size: 0.875rem;
   }
-  .af-alert-info    { background: rgba(59,130,246,.12); border-left: 3px solid #3b82f6; color: var(--af-txt); }
-  .af-alert-success { background: rgba(16,185,129,.12); border-left: 3px solid #10b981; color: var(--af-txt); }
-  .af-alert-warning { background: rgba(245,158,11,.12); border-left: 3px solid #f59e0b; color: var(--af-txt); }
+  .af-alert-info    { background: rgba(38,198,218,.12); border-left: 3px solid #26c6da; color: var(--af-txt); }
+  .af-alert-success { background: rgba(45,212,191,.12); border-left: 3px solid #2dd4bf; color: var(--af-txt); }
+  .af-alert-warning { background: rgba(255,139,61,.12); border-left: 3px solid #ff8b3d; color: var(--af-txt); }
   .af-alert-danger  { background: rgba(239,68,68,.12);  border-left: 3px solid #ef4444; color: var(--af-txt); }
 
   /* ── Table ── */
@@ -525,7 +531,7 @@
   }
 
   /* ── Legacy aliases ── */
-  .card         { background: var(--af-panel); border: 1px solid var(--af-line); border-radius: var(--af-radius); box-shadow: var(--af-shadow-card); backdrop-filter: blur(12px); }
+  .card         { background: var(--af-panel); border: 1px solid var(--af-line); border-radius: var(--af-radius); box-shadow: var(--af-shadow-card); backdrop-filter: blur(16px); }
   .card-hover   { transition: all 0.3s ease; }
   .card-hover:hover { transform: translateY(-3px); box-shadow: var(--af-shadow-lg); border-color: var(--af-line-strong); }
 }
@@ -542,7 +548,7 @@
   .transition-smooth { transition: all 0.3s ease-in-out; }
 
   .text-gradient-primary {
-    background: linear-gradient(135deg, var(--af-primary), var(--af-accent));
+    background: linear-gradient(120deg, #fbbf77, #f97316, #2dd4bf);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
@@ -615,7 +621,7 @@
      3. .lp-nav-link ::after underline hover (pseudo-element)
    ═══════════════════════════════════════════════════════════════════════════ */
 
-/* Ensure html/body don't show the app's light background behind the dark landing page */
+/* Ensure html/body don't show the app's dark background behind the dark landing page */
 html:has(.lp-root),
 body:has(.lp-root) {
   background: #050711;

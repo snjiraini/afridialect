@@ -68,7 +68,7 @@ export default function TaskUnlockClient({ initialTasks }: Props) {
       {error && (
         <div
           className="mb-4 text-sm p-3 rounded-xl"
-          style={{ background: '#fee2e2', color: '#991b1b' }}
+          style={{ background: 'rgba(248,81,73,0.12)', color: '#f85149' }}
         >
           {error}
         </div>
@@ -76,7 +76,7 @@ export default function TaskUnlockClient({ initialTasks }: Props) {
       {successMsg && (
         <div
           className="mb-4 text-sm p-3 rounded-xl"
-          style={{ background: '#d1fae5', color: '#065f46' }}
+          style={{ background: 'rgba(45,212,191,0.12)', color: '#2dd4bf' }}
         >
           ✅ {successMsg}
         </div>
@@ -147,8 +147,8 @@ export default function TaskUnlockClient({ initialTasks }: Props) {
                         }}
                         className="text-xs font-semibold px-3 py-1 rounded-lg"
                         style={{
-                          background: '#fee2e2',
-                          color: '#991b1b',
+                          background: 'rgba(248,81,73,0.12)',
+                          color: '#f85149',
                           opacity: unlocking === t.id ? 0.5 : 1,
                           cursor: unlocking === t.id ? 'wait' : 'pointer',
                         }}

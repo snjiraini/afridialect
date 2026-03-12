@@ -216,17 +216,19 @@ export default function Sidebar() {
       style={{
         zIndex: 40,
         width: 'var(--af-sidebar-w)',
-        background: 'linear-gradient(180deg, #161b22 0%, #0d1117 100%)',
-        borderRight: '1px solid #30363d',
-        color: 'var(--af-sidebar-text)',
+        background: 'linear-gradient(180deg,rgba(7,11,26,0.98) 0%,rgba(5,7,17,0.99) 100%)',
+        borderRight: '1px solid rgba(255,255,255,0.06)',
+        color: '#f7f8ff',
         padding: '24px 16px',
-        boxShadow: '4px 0 24px rgba(1, 4, 9, 0.5)',
+        boxShadow: '4px 0 32px rgba(0,0,0,0.6)',
+        backdropFilter: 'blur(20px)',
+        WebkitBackdropFilter: 'blur(20px)',
         transition: 'background 0.4s ease',
       }}
     >
       {/* Brand */}
       <div className="flex items-center gap-3 px-1 mb-1">
-        <div className="w-9 h-9 rounded-xl overflow-hidden flex-shrink-0 shadow-inner" style={{ background: 'rgba(245, 166, 35, 0.12)', border: '1px solid rgba(245, 166, 35, 0.2)' }}>
+        <div className="w-9 h-9 rounded-xl overflow-hidden flex-shrink-0 shadow-inner" style={{ background: 'rgba(245,181,93,0.12)', border: '1px solid rgba(245,181,93,0.2)' }}>
           <Image
             src="/afridialect.svg"
             alt="Afridialect"
@@ -237,10 +239,10 @@ export default function Sidebar() {
           />
         </div>
         <div>
-          <div className="font-bold text-base leading-tight" style={{ fontFamily: "'Comfortaa', system-ui, sans-serif", color: '#e6edf3' }}>
+          <div className="font-bold text-base leading-tight" style={{ fontFamily: "'Comfortaa', system-ui, sans-serif", color: '#f7f8ff', letterSpacing: '0.04em' }}>
             Afridialect
           </div>
-          <div className="text-[10px] leading-tight mt-0.5" style={{ color: '#6e7681' }}>
+          <div className="text-[10px] leading-tight mt-0.5" style={{ color: '#7c84af' }}>
             African Speech Datasets
           </div>
         </div>
@@ -250,22 +252,26 @@ export default function Sidebar() {
       {user && (
         <div
           className="flex items-center gap-3 p-3 rounded-2xl flex-shrink-0"
-          style={{ background: 'rgba(245, 166, 35, 0.08)', border: '1px solid rgba(245, 166, 35, 0.15)' }}
+          style={{ background: 'rgba(245,181,93,0.08)', border: '1px solid rgba(245,181,93,0.15)' }}
         >
-          <div className="af-avatar w-10 h-10 text-sm flex-shrink-0" aria-hidden="true">
+          <div
+            className="w-10 h-10 text-sm flex-shrink-0 flex items-center justify-center rounded-full font-bold"
+            style={{ background: 'linear-gradient(135deg,rgba(255,139,61,0.3),rgba(245,181,93,0.2))', color: '#f5b55d', border: '1px solid rgba(245,181,93,0.3)' }}
+            aria-hidden="true"
+          >
             {avatarInitials}
           </div>
           <div className="flex-1 min-w-0">
-            <div className="text-sm font-semibold truncate leading-tight" style={{ color: '#e6edf3' }}>{firstName}</div>
+            <div className="text-sm font-semibold truncate leading-tight" style={{ color: '#f7f8ff' }}>{firstName}</div>
             <div className="flex items-center gap-1.5 mt-0.5">
-              <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: '#3fb950' }} />
-              <span className="text-[11px]" style={{ color: '#6e7681' }}>Active</span>
+              <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: '#2dd4bf' }} />
+              <span className="text-[11px]" style={{ color: '#7c84af' }}>Active</span>
             </div>
           </div>
           {userRoles.length > 0 && (
             <span
               className="text-[10px] px-2 py-0.5 rounded-full font-semibold capitalize flex-shrink-0"
-              style={{ background: 'rgba(245, 166, 35, 0.15)', color: '#f5a623', border: '1px solid rgba(245, 166, 35, 0.25)' }}
+              style={{ background: 'rgba(245,181,93,0.15)', color: '#f5b55d', border: '1px solid rgba(245,181,93,0.25)' }}
             >
               {userRoles[0]}
             </span>
@@ -298,13 +304,19 @@ export default function Sidebar() {
                 href={item.href}
                 className={`af-nav-item${isActive ? ' active' : ''}`}
                 aria-current={isActive ? 'page' : undefined}
+                style={isActive ? {
+                  background: 'rgba(245,181,93,0.12)',
+                  color: '#f5b55d',
+                  fontWeight: 600,
+                  border: '1px solid rgba(245,181,93,0.2)',
+                } : {}}
               >
                 {item.icon}
                 <span className="flex-1">{item.label}</span>
                 {isActive && (
                   <span
                     className="w-1.5 h-1.5 rounded-full flex-shrink-0"
-                    style={{ background: '#f5a623' }}
+                    style={{ background: '#f5b55d' }}
                   />
                 )}
               </Link>
@@ -316,7 +328,7 @@ export default function Sidebar() {
       {/* Footer */}
       <div
         className="flex items-center gap-2 pt-3 flex-shrink-0"
-        style={{ borderTop: '1px solid #30363d' }}
+        style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}
       >
         {/* Sign-out button — standalone, NOT wrapped in any Link */}
         {user && (
@@ -327,7 +339,7 @@ export default function Sidebar() {
             aria-label="Sign out of Afridialect"
             className="flex-1 flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm font-medium"
             style={{
-              color: '#6e7681',
+              color: '#7c84af',
               background: 'transparent',
               border: 'none',
               transition: 'background 0.2s ease, color 0.2s ease',
@@ -342,7 +354,7 @@ export default function Sidebar() {
             }}
             onMouseLeave={(e) => {
               e.currentTarget.style.background = 'transparent'
-              e.currentTarget.style.color = '#6e7681'
+              e.currentTarget.style.color = '#7c84af'
             }}
           >
             <SignOutIcon />

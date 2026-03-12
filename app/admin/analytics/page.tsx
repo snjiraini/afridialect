@@ -20,8 +20,8 @@ function fmtReason(r: string) {
 }
 
 function RateBar({ rate }: { rate: number }) {
-  const bg = rate >= 80 ? '#dcfce7' : rate >= 60 ? '#fef3c7' : '#fee2e2'
-  const fg = rate >= 80 ? '#166534' : rate >= 60 ? '#92400e' : '#991b1b'
+  const bg = rate >= 80 ? 'rgba(45,212,191,0.15)' : rate >= 60 ? 'rgba(245,181,93,0.15)' : 'rgba(248,81,73,0.15)'
+  const fg = rate >= 80 ? '#2dd4bf' : rate >= 60 ? '#f5b55d' : '#f85149'
   return (
     <span
       style={{
@@ -361,9 +361,9 @@ export default async function AdminAnalyticsPage() {
           <h2 className="text-base font-semibold mb-4" style={{ color: 'var(--af-txt)' }}>✅ QC Performance by Stage</h2>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             {[
-              { key: 'audio_qc',       label: '🎵 Audio QC',      accent: '#fef3c7', textAccent: '#92400e' },
-              { key: 'transcript_qc',  label: '📝 Transcript QC', accent: '#ede9fe', textAccent: '#6d28d9' },
-              { key: 'translation_qc', label: '🌍 Translation QC', accent: '#d1fae5', textAccent: '#065f46' },
+              { key: 'audio_qc',       label: '🎵 Audio QC',      accent: 'rgba(245,181,93,0.15)', textAccent: '#f5b55d' },
+              { key: 'transcript_qc',  label: '📝 Transcript QC', accent: 'rgba(38,198,218,0.15)', textAccent: '#26c6da' },
+              { key: 'translation_qc', label: '🌍 Translation QC', accent: 'rgba(45,212,191,0.15)', textAccent: '#2dd4bf' },
             ].map(({ key, label, accent, textAccent }) => {
               const d = qcByType[key] ?? { total: 0, approved: 0, rejected: 0, approvalRate: 0 }
               return (

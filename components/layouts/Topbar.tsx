@@ -46,11 +46,12 @@ export default function Topbar({ title, subtitle }: TopbarProps) {
       style={{
         height: 'var(--af-topbar-h)',
         zIndex: 30,
-        background: 'rgba(13, 17, 23, 0.9)',
-        borderBottom: '1px solid #30363d',
-        backdropFilter: 'blur(16px)',
-        WebkitBackdropFilter: 'blur(16px)',
+        background: 'linear-gradient(135deg,rgba(5,7,17,0.94),rgba(13,18,32,0.94))',
+        borderBottom: '1px solid rgba(255,255,255,0.06)',
+        backdropFilter: 'blur(20px)',
+        WebkitBackdropFilter: 'blur(20px)',
         transition: 'background 0.3s ease, border-color 0.3s ease',
+        boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
       }}
     >
       {/* Page title */}
@@ -58,7 +59,7 @@ export default function Topbar({ title, subtitle }: TopbarProps) {
         {title && (
           <h1
             className="text-base font-semibold truncate leading-tight"
-            style={{ color: 'var(--af-txt)', fontFamily: 'Lexend, Inter, sans-serif' }}
+            style={{ color: '#f7f8ff', fontFamily: "'Comfortaa', system-ui, sans-serif", letterSpacing: '0.02em' }}
           >
             {title}
           </h1>
@@ -66,7 +67,7 @@ export default function Topbar({ title, subtitle }: TopbarProps) {
         {subtitle && (
           <p
             className="text-xs truncate mt-0.5"
-            style={{ color: 'var(--af-muted)' }}
+            style={{ color: '#7c84af' }}
           >
             {subtitle}
           </p>
@@ -78,9 +79,17 @@ export default function Topbar({ title, subtitle }: TopbarProps) {
         {/* Notification bell */}
         <button
           type="button"
-          className="relative af-icon-btn"
+          className="relative"
           aria-label="Notifications"
           onClick={(e) => e.stopPropagation()}
+          style={{
+            width: '36px', height: '36px', display: 'grid', placeItems: 'center',
+            borderRadius: '10px', border: '1px solid rgba(255,255,255,0.08)',
+            background: 'rgba(255,255,255,0.04)', color: '#a8b0d8', cursor: 'pointer',
+            transition: 'all 0.2s ease',
+          }}
+          onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(245,181,93,0.12)'; e.currentTarget.style.borderColor = 'rgba(245,181,93,0.3)'; e.currentTarget.style.color = '#f5b55d' }}
+          onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.04)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)'; e.currentTarget.style.color = '#a8b0d8' }}
         >
           <BellIcon />
           {/* Red dot indicator */}
@@ -88,7 +97,7 @@ export default function Topbar({ title, subtitle }: TopbarProps) {
             className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full border-2"
             style={{
               background: '#f85149',
-              borderColor: '#161b22',
+              borderColor: 'rgba(5,7,17,0.94)',
             }}
             aria-hidden="true"
           />
@@ -98,24 +107,27 @@ export default function Topbar({ title, subtitle }: TopbarProps) {
         {user && (
           <Link
             href="/profile"
-            className="flex items-center gap-2 px-3 py-1.5 rounded-xl transition-all duration-200"
+            className="flex items-center gap-2 px-3 py-1.5 rounded-[999px] transition-all duration-200"
             style={{
-              background: 'rgba(245,166,35,0.08)',
-              border: '1px solid rgba(245,166,35,0.15)',
+              background: 'rgba(245,181,93,0.10)',
+              border: '1px solid rgba(245,181,93,0.18)',
               textDecoration: 'none',
             }}
             aria-label="Go to profile"
             onClick={(e) => e.stopPropagation()}
+            onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(245,181,93,0.18)'; e.currentTarget.style.borderColor = 'rgba(245,181,93,0.35)' }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(245,181,93,0.10)'; e.currentTarget.style.borderColor = 'rgba(245,181,93,0.18)' }}
           >
             <div
-              className="af-avatar w-7 h-7 text-xs"
+              className="w-7 h-7 text-xs flex-shrink-0 flex items-center justify-center rounded-full font-bold"
+              style={{ background: 'linear-gradient(135deg,rgba(255,139,61,0.3),rgba(245,181,93,0.2))', color: '#f5b55d', border: '1px solid rgba(245,181,93,0.3)' }}
               aria-hidden="true"
             >
               {initials(user.email)}
             </div>
             <span
               className="text-sm font-medium max-w-[120px] truncate hidden lg:block"
-              style={{ color: 'var(--af-txt)' }}
+              style={{ color: '#f7f8ff' }}
             >
               {user.email?.split('@')[0] ?? 'User'}
             </span>

@@ -110,7 +110,7 @@ export default async function ReviewerPage() {
               {isTranscriptQC && (
                 <span
                   className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold"
-                  style={{ background: '#ede9fe', color: '#7c3aed' }}
+                  style={{ background: 'rgba(38,198,218,0.15)', color: '#26c6da' }}
                 >
                   Transcript QC
                 </span>
@@ -118,7 +118,7 @@ export default async function ReviewerPage() {
               {isTranslationQC && (
                 <span
                   className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold"
-                  style={{ background: '#fef3c7', color: '#d97706' }}
+                  style={{ background: 'rgba(245,181,93,0.15)', color: '#f5b55d' }}
                 >
                   Translation QC
                 </span>
@@ -193,13 +193,13 @@ export default async function ReviewerPage() {
               </span>
               <span
                 className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-sm font-medium"
-                style={{ background: '#ede9fe', color: '#7c3aed' }}
+                style={{ background: 'rgba(38,198,218,0.15)', color: '#26c6da' }}
               >
                 {transcriptQCTasks.length} transcript QC
               </span>
               <span
                 className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-sm font-medium"
-                style={{ background: '#fef3c7', color: '#d97706' }}
+                style={{ background: 'rgba(245,181,93,0.15)', color: '#f5b55d' }}
               >
                 {translationQCTasks.length} translation QC
               </span>

@@ -327,15 +327,15 @@ export default function MintQueueClient({ clips, mintedClipIds = [] }: Props) {
                 className="mt-4 rounded-xl p-4 text-xs"
                 style={{
                   background: result.success
-                    ? '#f0fdf4'
+                    ? 'rgba(45,212,191,0.10)'
                     : result.warning
-                    ? '#fffbeb'
-                    : '#fef2f2',
+                    ? 'rgba(245,181,93,0.10)'
+                    : 'rgba(248,81,73,0.10)',
                   color: result.success
-                    ? '#166534'
+                    ? '#2dd4bf'
                     : result.warning
-                    ? '#92400e'
-                    : '#991b1b',
+                    ? '#f5b55d'
+                    : '#f85149',
                 }}
               >
                 {result.success && (
@@ -421,8 +421,8 @@ export default function MintQueueClient({ clips, mintedClipIds = [] }: Props) {
                           disabled={cleaning === clip.id}
                           className="text-xs px-3 py-1 rounded-lg font-medium"
                           style={{
-                            background: '#fef2f2',
-                            color: '#991b1b',
+                            background: 'rgba(248,81,73,0.12)',
+                            color: '#f85149',
                             opacity: cleaning === clip.id ? 0.6 : 1,
                             cursor: cleaning === clip.id ? 'not-allowed' : 'pointer',
                           }}
@@ -433,7 +433,7 @@ export default function MintQueueClient({ clips, mintedClipIds = [] }: Props) {
                         </button>
                       )}
                       {cleanedIds.has(clip.id) && (
-                        <span className="text-xs px-3 py-1 rounded-lg font-medium" style={{ background: '#f0fdf4', color: '#166534' }}>
+                        <span className="text-xs px-3 py-1 rounded-lg font-medium" style={{ background: 'rgba(45,212,191,0.12)', color: '#2dd4bf' }}>
                           ✅ Staging file removed
                         </span>
                       )}
@@ -442,10 +442,10 @@ export default function MintQueueClient({ clips, mintedClipIds = [] }: Props) {
                     {verifyResults[clip.id] && (
                       <div className="mt-2 text-xs">
                         {verifyResults[clip.id].error ? (
-                          <p style={{ color: '#991b1b' }}>❌ Verify error: {verifyResults[clip.id].error}</p>
+                          <p style={{ color: '#f85149' }}>❌ Verify error: {verifyResults[clip.id].error}</p>
                         ) : (
                           <>
-                            <p className="font-semibold mb-1" style={{ color: verifyResults[clip.id].allPinned ? '#166534' : '#92400e' }}>
+                            <p className="font-semibold mb-1" style={{ color: verifyResults[clip.id].allPinned ? '#2dd4bf' : '#f5b55d' }}>
                               {verifyResults[clip.id].allPinned ? '✅ All CIDs confirmed pinned' : '⚠️ Some CIDs are NOT pinned'}
                             </p>
                             {(verifyResults[clip.id].results ?? []).map((r) => (
@@ -459,7 +459,7 @@ export default function MintQueueClient({ clips, mintedClipIds = [] }: Props) {
                                 >
                                   {r.cid.slice(0, 16)}…
                                 </a>
-                                {r.error && <span style={{ color: '#991b1b' }}> ({r.error})</span>}
+                                {r.error && <span style={{ color: '#f85149' }}> ({r.error})</span>}
                               </p>
                             ))}
                           </>
@@ -470,9 +470,9 @@ export default function MintQueueClient({ clips, mintedClipIds = [] }: Props) {
                     {cleanupResults[clip.id] && (
                       <div className="mt-2 text-xs">
                         {cleanupResults[clip.id].error ? (
-                          <p style={{ color: '#991b1b' }}>❌ Cleanup error: {cleanupResults[clip.id].error}</p>
+                          <p style={{ color: '#f85149' }}>❌ Cleanup error: {cleanupResults[clip.id].error}</p>
                         ) : (
-                          <p style={{ color: '#166534' }}>✅ Removed: {cleanupResults[clip.id].removedPath}</p>
+                          <p style={{ color: '#2dd4bf' }}>✅ Removed: {cleanupResults[clip.id].removedPath}</p>
                         )}
                       </div>
                     )}
