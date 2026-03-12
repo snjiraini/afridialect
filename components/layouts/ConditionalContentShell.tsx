@@ -36,7 +36,7 @@ export default function ConditionalContentShell({
   // Authenticated app routes: offset by sidebar width
   return (
     <div
-      className="min-h-screen overflow-x-hidden transition-colors duration-300"
+      className="app-shell min-h-screen overflow-x-hidden transition-colors duration-300"
       style={{
         marginLeft: 'var(--af-sidebar-w)',
         background: [

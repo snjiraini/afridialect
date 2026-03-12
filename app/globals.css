@@ -614,6 +614,26 @@
 .animate-fade-in        { animation: fade-in 0.3s ease both; }
 
 /* ═══════════════════════════════════════════════════════════════════════════
+   APP SHELL — contrast boost for contributor & admin pages only
+   Scoped to .app-shell (applied by ConditionalContentShell on authenticated
+   routes). Does NOT affect the landing page or auth pages.
+   Goal: nudge secondary/muted text toward WCAG AA without redesigning the UI.
+   ═══════════════════════════════════════════════════════════════════════════ */
+.app-shell {
+  /* Secondary body text: #a8b0d8 → #bcc4e8  (~15% lighter, still blue-grey) */
+  --af-txt-secondary:   #bcc4e8;
+
+  /* Muted / label text: #7c84af → #9aa2cc  (noticeably more readable) */
+  --af-muted:           #9aa2cc;
+
+  /* Table header / form labels share --af-muted — benefit automatically */
+
+  /* Slightly brighten card borders so they read better on dark glass */
+  --af-line:            rgba(255, 255, 255, 0.09);
+  --af-line-strong:     rgba(255, 255, 255, 0.16);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
    LANDING PAGE — minimal residual CSS
    Only what Tailwind cannot express:
      1. html:has(.lp-root) body background override
