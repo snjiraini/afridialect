@@ -4,6 +4,7 @@
  * Landing page — migrated visual design from "Afridialect Front end".
  * All auth routes preserved: /auth/login and /auth/signup.
  * No sidebar or app shell is rendered on this route (ConditionalSidebar / ConditionalContentShell handle that).
+ * Styles use Tailwind utility classes. Only wave-bar animation and the html:has(.lp-root) override remain in globals.css.
  */
 
 import Link from 'next/link'
@@ -55,10 +56,10 @@ const STEPS = [
 
 /* ── Dialect regions ─────────────────────────────────────────────────────── */
 const REGIONS = [
-  { region: 'East Africa',       accent: 'lp-card-dialect--east',  items: ['Swahili', 'Kikuyu', 'Luo', 'Amharic', 'Oromo', 'Somali'] },
-  { region: 'West Africa',       accent: 'lp-card-dialect--west',  items: ['Yorùbá', 'Hausa', 'Igbo', 'Twi', 'Ga', 'Wolof'] },
-  { region: 'Southern Africa',   accent: 'lp-card-dialect--south', items: ['Zulu', 'Xhosa', 'Sesotho', 'Shona', 'Afrikaans'] },
-  { region: 'Francophone & North', accent: 'lp-card-dialect--north', items: ['Maghrebi Arabic', 'Darija', 'Fulfulde', 'French-variant accents'] },
+  { region: 'East Africa',         borderColor: 'rgba(45,212,191,0.6)',  items: ['Swahili', 'Kikuyu', 'Luo', 'Amharic', 'Oromo', 'Somali'] },
+  { region: 'West Africa',         borderColor: 'rgba(245,181,93,0.6)',  items: ['Yorùbá', 'Hausa', 'Igbo', 'Twi', 'Ga', 'Wolof'] },
+  { region: 'Southern Africa',     borderColor: 'rgba(37,99,235,0.6)',   items: ['Zulu', 'Xhosa', 'Sesotho', 'Shona', 'Afrikaans'] },
+  { region: 'Francophone & North', borderColor: 'rgba(244,114,182,0.6)', items: ['Maghrebi Arabic', 'Darija', 'Fulfulde', 'French-variant accents'] },
 ]
 
 /* ── Powered-by tech list ────────────────────────────────────────────────── */
@@ -90,143 +91,262 @@ export default function Home() {
     : { duration: 6, repeat: Infinity, repeatType: 'mirror' as const }
 
   return (
-    <div className="lp-root">
+    /* lp-root class is kept solely for the html:has(.lp-root) body override in globals.css */
+    <div
+      className="lp-root"
+      style={{
+        colorScheme: 'dark',
+        fontFamily: 'system-ui,-apple-system,BlinkMacSystemFont,"SF Pro Text","Inter",sans-serif',
+        background: [
+          'radial-gradient(circle at 0% 0%, rgba(244,172,84,0.18), transparent 55%)',
+          'radial-gradient(circle at 100% 10%, rgba(45,212,191,0.12), transparent 55%)',
+          'radial-gradient(circle at top, #121635 0, #050711 54%, #010108 100%)',
+        ].join(', '),
+        backgroundAttachment: 'fixed',
+        color: '#f7f8ff',
+        WebkitFontSmoothing: 'antialiased',
+        minHeight: '100vh',
+      }}
+    >
       {/* ── Navbar ── */}
-      <header className="lp-nav-root">
+      <header className="sticky top-0 backdrop-blur-xl" style={{ zIndex: 40 }}>
         <motion.div
-          className="lp-nav-shell"
+          className="max-w-[1120px] mx-auto mt-2 px-4 py-[10px] flex items-center justify-between rounded-[999px] border border-white/[0.08]"
+          style={{ background: 'linear-gradient(135deg,rgba(5,7,17,0.94),rgba(13,18,32,0.94))', boxShadow: '0 18px 45px rgba(0,0,0,0.5)' }}
           initial={{ opacity: 0, y: -24 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.7, ease: [0.21, 0.47, 0.32, 0.98] }}
         >
           {/* Brand */}
-          <a href="#top" className="lp-nav-brand">
-            <div className="lp-nav-mark">
+          <a href="#top" className="inline-flex items-center gap-[10px] text-inherit no-underline">
+            <div className="relative w-[60px] h-[60px] overflow-visible">
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src="/assets/logos/afridialect.svg" alt="Afridialect" className="lp-nav-logo-img" />
+              <img src="/assets/logos/afridialect.svg" alt="Afridialect" className="w-full h-full object-contain block" />
             </div>
-            <div className="lp-nav-text">
-              <span className="lp-nav-title">Afridialect</span>
-              <span className="lp-nav-subtitle">African Speech Datasets</span>
+            <div className="flex flex-col">
+              <span className="font-['Comfortaa',sans-serif] text-[25px] font-bold tracking-[0.04em] text-[#f7f8ff]">Afridialect</span>
+              <span className="text-[13px] text-[#7c84af]">African Speech Datasets</span>
             </div>
           </a>
 
           {/* Scroll links */}
-          <nav className="lp-nav-links" aria-label="Primary">
+          <nav className="hidden md:flex items-center gap-[18px] text-[15px]" aria-label="Primary">
             {NAV_ITEMS.map((item) => (
-              <a key={item.href} href={item.href} className="lp-nav-link">{item.label}</a>
+              <a
+                key={item.href}
+                href={item.href}
+                className="lp-nav-link relative text-[#a8b0d8] py-1 hover:text-[#f7f8ff] transition-colors duration-150"
+              >
+                {item.label}
+              </a>
             ))}
           </nav>
 
-          {/* Auth actions — linked to real auth routes */}
-          <div className="lp-nav-actions">
-            <Link href="/auth/login" className="lp-btn lp-btn-outline">Login</Link>
-            <Link href="/auth/signup" className="lp-btn lp-btn-primary">Sign Up</Link>
+          {/* Auth actions */}
+          <div className="hidden sm:flex items-center gap-[10px]">
+            {/* Outline button */}
+            <Link
+              href="/auth/login"
+              className="inline-flex items-center justify-center rounded-[999px] px-4 py-[7px] text-[13px] font-medium border border-white/[0.16] text-[#f7f8ff] transition-all duration-[160ms]"
+              style={{ background: 'rgba(8,11,24,0.6)' }}
+              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = 'rgba(255,255,255,0.32)'; (e.currentTarget as HTMLElement).style.background = 'rgba(10,13,28,0.9)' }}
+              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = 'rgba(255,255,255,0.16)'; (e.currentTarget as HTMLElement).style.background = 'rgba(8,11,24,0.6)' }}
+            >Login</Link>
+            {/* Primary button */}
+            <Link
+              href="/auth/signup"
+              className="inline-flex items-center justify-center rounded-[999px] px-4 py-[7px] text-[13px] font-medium text-[#0a0712] transition-all duration-[160ms]"
+              style={{ background: 'linear-gradient(135deg,#ff8b3d,#f5b55d)', boxShadow: '0 16px 36px rgba(0,0,0,0.7)' }}
+              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.transform = 'translateY(-1px)'; (e.currentTarget as HTMLElement).style.boxShadow = '0 20px 45px rgba(0,0,0,0.8)' }}
+              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.transform = ''; (e.currentTarget as HTMLElement).style.boxShadow = '0 16px 36px rgba(0,0,0,0.7)' }}
+            >Sign Up</Link>
           </div>
         </motion.div>
       </header>
 
       {/* ── Main content ── */}
-      <main className="lp-main" id="top">
+      <main className="max-w-[1120px] mx-auto px-5 pb-16" style={{ paddingTop: 'calc(76px + 32px)' }} id="top">
 
         {/* ── Hero ── */}
-        <section className="lp-hero-root">
-          <div className="lp-hero-grid">
+        <section className="mt-10">
+          <div className="grid gap-10 items-center" style={{ gridTemplateColumns: 'minmax(0,1.2fr) minmax(0,1.1fr)' }}>
             {/* Copy */}
-            <div className="lp-hero-copy">
+            <div className="flex flex-col gap-5">
               <motion.div
                 initial={{ opacity: 0, y: 24 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.7, ease: [0.21, 0.47, 0.32, 0.98] }}
               >
-                <p className="lp-hero-kicker">African speech datasets for modern AI</p>
-                <h1 className="lp-hero-title">
+                <p className="text-[13px] tracking-[0.12em] uppercase text-[#f5b55d]">African speech datasets for modern AI</p>
+                <h1 className="text-[40px] leading-[1.08] tracking-[-0.03em] mt-[10px] mb-3 text-[#f7f8ff]">
                   High-quality voice data in{' '}
-                  <span className="lp-hero-gradient">African local dialects</span>.
+                  <span
+                    className="bg-clip-text text-transparent"
+                    style={{ backgroundImage: 'linear-gradient(120deg,#fbbf77,#f97316,#2dd4bf)' }}
+                  >
+                    African local dialects
+                  </span>.
                 </h1>
-                <p className="lp-hero-body">
+                <p className="text-[15px] leading-[1.7] text-[#a8b0d8] max-w-[34rem]">
                   Afridialect delivers curated speech datasets across African languages.
                   Contribute, earn, and power the next generation of voice AI built for the continent.
                 </p>
               </motion.div>
 
               <motion.div
-                className="lp-hero-actions"
+                className="flex flex-wrap gap-3 mt-[6px]"
                 initial={{ opacity: 0, y: 24 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.6, delay: 0.15 }}
               >
-                <Link href="/marketplace" className="lp-btn lp-btn-primary lp-btn-lg">Explore datasets</Link>
-                <Link href="/auth/signup" className="lp-btn lp-btn-outline lp-btn-lg">Start contributing</Link>
+                {/* Primary lg */}
+                <Link
+                  href="/marketplace"
+                  className="inline-flex items-center justify-center rounded-[999px] px-[22px] py-[10px] text-[14px] font-medium text-[#0a0712] transition-all duration-[160ms]"
+                  style={{ background: 'linear-gradient(135deg,#ff8b3d,#f5b55d)', boxShadow: '0 16px 36px rgba(0,0,0,0.7)' }}
+                  onMouseEnter={e => { (e.currentTarget as HTMLElement).style.transform = 'translateY(-1px)'; (e.currentTarget as HTMLElement).style.boxShadow = '0 20px 45px rgba(0,0,0,0.8)' }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.transform = ''; (e.currentTarget as HTMLElement).style.boxShadow = '0 16px 36px rgba(0,0,0,0.7)' }}
+                >Explore datasets</Link>
+                {/* Outline lg */}
+                <Link
+                  href="/auth/signup"
+                  className="inline-flex items-center justify-center rounded-[999px] px-[22px] py-[10px] text-[14px] font-medium border text-[#f7f8ff] transition-all duration-[160ms]"
+                  style={{ borderColor: 'rgba(255,255,255,0.16)', background: 'rgba(8,11,24,0.6)' }}
+                  onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = 'rgba(255,255,255,0.32)'; (e.currentTarget as HTMLElement).style.background = 'rgba(10,13,28,0.9)' }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = 'rgba(255,255,255,0.16)'; (e.currentTarget as HTMLElement).style.background = 'rgba(8,11,24,0.6)' }}
+                >Start contributing</Link>
               </motion.div>
 
               <motion.div
-                className="lp-hero-meta"
+                className="flex items-center gap-4 mt-5 px-3 py-[10px] rounded-[999px] border border-white/[0.04]"
+                style={{ background: 'radial-gradient(circle at 0 0,rgba(245,181,93,0.12),transparent 55%),rgba(8,11,24,0.85)' }}
                 initial={{ opacity: 0, y: 24 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.6, delay: 0.3 }}
               >
-                <div className="lp-hero-meta-item">
-                  <span className="lp-hero-meta-label">Use cases</span>
-                  <span className="lp-hero-meta-value">ASR, agents, call centers, assistants</span>
+                <div className="flex flex-col gap-[2px]">
+                  <span className="text-[11px] uppercase tracking-[0.13em] text-[#7c84af]">Use cases</span>
+                  <span className="text-[12px] text-[#a8b0d8]">ASR, agents, call centers, assistants</span>
                 </div>
-                <div className="lp-hero-meta-divider" />
-                <div className="lp-hero-meta-item">
-                  <span className="lp-hero-meta-label">Built for</span>
-                  <span className="lp-hero-meta-value">ML teams, AI labs, product builders</span>
+                {/* divider */}
+                <div className="w-px h-[26px]" style={{ background: 'linear-gradient(to bottom,transparent,rgba(255,255,255,0.28),transparent)' }} />
+                <div className="flex flex-col gap-[2px]">
+                  <span className="text-[11px] uppercase tracking-[0.13em] text-[#7c84af]">Built for</span>
+                  <span className="text-[12px] text-[#a8b0d8]">ML teams, AI labs, product builders</span>
                 </div>
               </motion.div>
             </div>
 
             {/* Visual */}
-            <div className="lp-hero-visual-shell" aria-hidden="true">
+            <div
+              className="relative min-h-[320px] overflow-hidden border border-white/[0.06]"
+              style={{
+                borderRadius: '28px',
+                background: [
+                  'radial-gradient(circle at 10% 0,rgba(250,204,21,0.13),transparent 55%)',
+                  'radial-gradient(circle at 100% 100%,rgba(56,189,248,0.12),transparent 55%)',
+                  'rgba(7,11,26,0.98)',
+                ].join(', '),
+                boxShadow: '0 24px 80px rgba(0,0,0,0.7)',
+              }}
+              aria-hidden="true"
+            >
+              {/* Orbit layer */}
               <motion.div
-                className="lp-hero-visual-layer lp-hero-visual-orbit"
+                className="absolute inset-0 mix-blend-screen border border-white/[0.06]"
+                style={{ borderRadius: '28px', borderTopColor: 'rgba(245,181,93,0.35)', borderLeftColor: 'rgba(45,212,191,0.35)' }}
                 animate={reduced ? undefined : { rotate: 360 }}
                 transition={reduced ? undefined : { duration: 32, repeat: Infinity, ease: 'linear' }}
               />
+              {/* Floating grid layer */}
               <motion.div
-                className="lp-hero-visual-layer lp-hero-visual-grid"
+                className="absolute"
+                style={{
+                  inset: '18px',
+                  borderRadius: '16px',
+                  backgroundImage: [
+                    'radial-gradient(circle at top,rgba(15,23,42,0.8),transparent 55%)',
+                    'linear-gradient(to right,rgba(148,163,184,0.06) 1px,transparent 1px)',
+                    'linear-gradient(to bottom,rgba(148,163,184,0.06) 1px,transparent 1px)',
+                  ].join(', '),
+                  backgroundSize: '100% 100%,40px 40px,40px 40px',
+                  opacity: 0.9,
+                }}
                 animate={floatingAnimate}
                 transition={floatingTransitionProps}
               />
               {/* Primary card */}
               <motion.div
-                className="lp-hero-visual-layer lp-hero-visual-card"
+                className="absolute border border-white/[0.08]"
+                style={{
+                  inset: 'auto 18px 18px auto',
+                  width: '72%',
+                  borderRadius: '20px',
+                  background: 'radial-gradient(circle at 0 0,rgba(250,204,21,0.18),transparent 55%),rgba(10,13,28,0.96)',
+                  boxShadow: '0 25px 65px rgba(0,0,0,0.9)',
+                  padding: '14px 16px 12px',
+                }}
                 initial={{ opacity: 0, y: 20, scale: 0.96 }}
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 transition={{ duration: 0.7, delay: 0.2 }}
               >
-                <div className="lp-hero-card-header">
-                  <span className="lp-hero-chip lp-hero-chip--accent">Live African speech</span>
-                  <span className="lp-hero-card-tag">Dataset preview</span>
+                <div className="flex justify-between items-center mb-[10px]">
+                  <span
+                    className="inline-flex items-center gap-[6px] rounded-[999px] px-[10px] py-1 text-[10px] uppercase tracking-[0.12em]"
+                    style={{ background: 'rgba(245,181,93,0.14)', color: '#f5b55d' }}
+                  >Live African speech</span>
+                  <span className="text-[11px] text-[#7c84af]">Dataset preview</span>
                 </div>
-                <div className="lp-hero-waveform">
+                {/* Waveform */}
+                <div
+                  className="flex items-end gap-[3px] h-[72px] overflow-hidden"
+                  style={{ borderRadius: '14px', padding: '10px 9px', background: 'radial-gradient(circle at 50% 0,rgba(15,23,42,0.9),transparent 60%),rgba(2,6,23,0.9)' }}
+                >
                   {Array.from({ length: 32 }).map((_, i) => (
-                    <span key={i} className="lp-hero-wave-bar" style={{ '--i': i } as CSSProperties} />
+                    <span
+                      key={i}
+                      className="lp-wave-bar w-1 rounded-[999px] opacity-80"
+                      style={{
+                        '--i': i,
+                        backgroundImage: 'linear-gradient(to top,rgba(30,64,175,0.2),#38bdf8,#fbbf24)',
+                        height: `calc(24% + (${i} * 2.4%))`,
+                      } as CSSProperties}
+                    />
                   ))}
                 </div>
-                <div className="lp-hero-card-footer">
+                <div className="flex justify-between items-center mt-2 text-[11px] text-[#7c84af]">
                   <span>Swahili · Call center · 44kHz</span>
-                  <span className="lp-hero-card-value">12,480 validated clips</span>
+                  <span className="text-[#f5b55d] font-medium">12,480 validated clips</span>
                 </div>
               </motion.div>
               {/* Secondary card */}
               <motion.div
-                className="lp-hero-visual-layer lp-hero-visual-card lp-hero-visual-card--secondary"
+                className="absolute border border-white/[0.08]"
+                style={{
+                  top: '22px',
+                  right: '18px',
+                  width: '72%',
+                  borderRadius: '20px',
+                  padding: '14px 16px 12px',
+                  background: 'rgba(7,10,22,0.96)',
+                }}
                 initial={{ opacity: 0, y: 26 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.6, delay: 0.35 }}
               >
-                <div className="lp-hero-secondary-grid">
+                <div className="grid grid-cols-3 gap-[10px]">
                   {[
                     { label: 'Contributors', value: '3,200+' },
                     { label: 'Dialects',     value: '40+' },
                     { label: 'Regions',      value: 'East · West · South' },
                   ].map((s) => (
-                    <div key={s.label} className="lp-hero-secondary-item">
-                      <span className="lp-hero-secondary-label">{s.label}</span>
-                      <span className="lp-hero-secondary-value">{s.value}</span>
+                    <div
+                      key={s.label}
+                      className="flex flex-col items-center justify-center text-center min-h-[72px] gap-1 rounded-xl border border-[rgba(148,163,184,0.2)] px-[14px] py-[10px]"
+                      style={{ background: 'rgba(15,23,42,0.92)' }}
+                    >
+                      <span className="text-[10px] uppercase tracking-[0.14em] text-[#7c84af]">{s.label}</span>
+                      <span className="block text-[13px] text-[#f7f8ff]">{s.value}</span>
                     </div>
                   ))}
                 </div>
@@ -236,20 +356,27 @@ export default function Home() {
         </section>
 
         {/* ── Stats strip ── */}
-        <section className="lp-stats-root" aria-label="Afridialect impact">
-          <div className="lp-stats-shell">
+        <section className="mt-10" aria-label="Afridialect impact">
+          <div
+            className="max-w-[1120px] mx-auto rounded-[999px] border border-[rgba(148,163,184,0.4)] grid gap-[18px]"
+            style={{
+              padding: '10px 16px',
+              background: 'radial-gradient(circle at 0 0,rgba(245,181,93,0.16),transparent 60%),rgba(8,11,24,0.9)',
+              gridTemplateColumns: 'repeat(3,minmax(0,1fr))',
+            }}
+          >
             {STATS.map((stat, index) => (
               <motion.div
                 key={stat.label}
-                className="lp-stat-card"
+                className="px-[10px] py-[6px] text-center"
                 initial={{ opacity: 0, y: 24 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true, amount: 0.5 }}
                 transition={{ duration: 0.6, delay: index * 0.06, ease: [0.21, 0.47, 0.32, 0.98] }}
               >
-                <div className="lp-stat-label">{stat.label}</div>
-                <div className="lp-stat-value">{stat.value}</div>
-                <div className="lp-stat-hint">{stat.hint}</div>
+                <div className="text-[11px] uppercase tracking-[0.16em] text-[#7c84af]">{stat.label}</div>
+                <div className="mt-1 text-[20px] font-semibold text-[#f7f8ff]">{stat.value}</div>
+                <div className="mt-1 text-[12px] text-[#a8b0d8]">{stat.hint}</div>
               </motion.div>
             ))}
           </div>
@@ -257,7 +384,7 @@ export default function Home() {
 
         {/* ── How it works ── */}
         <motion.section
-          className="lp-section"
+          className="mt-[72px]"
           initial="hidden"
           whileInView="visible"
           viewport={{ once: true, amount: 0.3 }}
@@ -265,35 +392,71 @@ export default function Home() {
           custom={0}
           id="how-it-works"
         >
-          <div className="lp-section-shell">
-            <div className="lp-section-header">
-              <p className="lp-section-kicker">How it works</p>
-              <h2 className="lp-section-title">From local voices to production datasets.</h2>
-              <p className="lp-section-body">
+          {/* Section shell */}
+          <div
+            className="rounded-[28px] border border-[rgba(148,163,184,0.26)]"
+            style={{
+              padding: '28px 24px 26px',
+              background: [
+                'radial-gradient(circle at 0% 0%,rgba(245,181,93,0.08),transparent 60%)',
+                'radial-gradient(circle at 100% 100%,rgba(56,189,248,0.08),transparent 60%)',
+                'rgba(8,11,24,0.95)',
+              ].join(', '),
+              boxShadow: '0 24px 80px rgba(0,0,0,0.7)',
+            }}
+          >
+            <div className="max-w-[40rem]">
+              <p className="text-[12px] tracking-[0.12em] uppercase text-[#f5b55d]">How it works</p>
+              <h2 className="mt-2 mb-[10px] text-[26px] tracking-[-0.02em] text-[#f7f8ff]">From local voices to production datasets.</h2>
+              <p className="m-0 text-[14px] leading-[1.7] text-[#a8b0d8]">
                 Afridialect connects native speakers and ML teams through a high-trust
                 workflow—so every dataset is precise, compliant, and ready for training.
               </p>
             </div>
-            <div className="lp-section-grid lp-section-grid--three">
+            <div className="grid gap-[18px] mt-[22px]" style={{ gridTemplateColumns: 'repeat(3,minmax(0,1fr))' }}>
               {STEPS.map((step, index) => (
                 <motion.article
                   key={step.id}
-                  className="lp-card lp-card-step"
+                  className="lp-card relative overflow-hidden border border-white/[0.06] pr-[18px]"
+                  style={{
+                    borderRadius: '20px',
+                    padding: '18px 16px 17px',
+                    background: 'radial-gradient(circle at 0 0,rgba(248,250,252,0.06),transparent 60%),rgba(7,11,26,0.96)',
+                    boxShadow: '0 20px 60px rgba(0,0,0,0.8)',
+                    transition: 'border-color 160ms ease-out,box-shadow 160ms ease-out,transform 160ms ease-out,background 160ms ease-out',
+                  }}
                   initial={{ opacity: 0, y: 32 }}
                   whileInView={{ opacity: 1, y: 0 }}
                   viewport={{ once: true, amount: 0.4 }}
                   transition={{ duration: 0.6, delay: index * 0.08, ease: [0.21, 0.47, 0.32, 0.98] }}
+                  onMouseEnter={e => {
+                    const el = e.currentTarget as HTMLElement
+                    el.style.transform = 'translateY(-2px)'
+                    el.style.borderColor = 'rgba(245,181,93,0.5)'
+                    el.style.boxShadow = '0 24px 70px rgba(0,0,0,0.86)'
+                  }}
+                  onMouseLeave={e => {
+                    const el = e.currentTarget as HTMLElement
+                    el.style.transform = ''
+                    el.style.borderColor = 'rgba(255,255,255,0.06)'
+                    el.style.boxShadow = '0 20px 60px rgba(0,0,0,0.8)'
+                  }}
                 >
-                  <div className="lp-card-step-header">
-                    <span className="lp-card-step-id">{step.id}</span>
-                    <h3 className="lp-card-step-title">{step.title}</h3>
+                  <div className="flex items-center gap-[10px] mb-2">
+                    <span className="text-[11px] tabular-nums text-[#f5b55d]">{step.id}</span>
+                    <h3 className="m-0 text-[16px] text-[#f7f8ff]">{step.title}</h3>
                   </div>
-                  <p className="lp-card-step-body">{step.body}</p>
-                  <div className="lp-card-step-foot">
-                    <span className="lp-card-step-pill">{step.pill}</span>
+                  <p className="m-0 text-[13px] leading-[1.7] text-[#a8b0d8]">{step.body}</p>
+                  <div className="mt-3">
+                    <span
+                      className="inline-flex items-center rounded-[999px] px-[10px] py-[5px] text-[11px] text-[#7c84af]"
+                      style={{ background: 'rgba(255,255,255,0.04)' }}
+                    >{step.pill}</span>
                   </div>
+                  {/* Orbit decoration */}
                   <motion.div
-                    className="lp-card-orbit"
+                    className="absolute rounded-full border border-dashed border-[rgba(148,163,184,0.35)] opacity-40 pointer-events-none"
+                    style={{ inset: '-30%' }}
                     animate={reduced ? undefined : { rotate: [0, 8, 0, -6, 0] }}
                     transition={reduced ? undefined : { duration: 18, repeat: Infinity, ease: 'linear' }}
                   />
@@ -305,7 +468,7 @@ export default function Home() {
 
         {/* ── Dialects ── */}
         <motion.section
-          className="lp-section"
+          className="mt-[72px]"
           initial="hidden"
           whileInView="visible"
           viewport={{ once: true, amount: 0.3 }}
@@ -313,36 +476,101 @@ export default function Home() {
           custom={1}
           id="dialects"
         >
-          <div className="lp-section-shell" id="explore">
-            <div className="lp-section-header">
-              <p className="lp-section-kicker">Supported dialects</p>
-              <h2 className="lp-section-title">Coverage across the continent.</h2>
-              <p className="lp-section-body">
+          <div
+            className="rounded-[28px] border border-[rgba(148,163,184,0.26)]"
+            style={{
+              padding: '28px 24px 26px',
+              background: [
+                'radial-gradient(circle at 0% 0%,rgba(245,181,93,0.08),transparent 60%)',
+                'radial-gradient(circle at 100% 100%,rgba(56,189,248,0.08),transparent 60%)',
+                'rgba(8,11,24,0.95)',
+              ].join(', '),
+              boxShadow: '0 24px 80px rgba(0,0,0,0.7)',
+            }}
+            id="explore"
+          >
+            <div className="max-w-[40rem]">
+              <p className="text-[12px] tracking-[0.12em] uppercase text-[#f5b55d]">Supported dialects</p>
+              <h2 className="mt-2 mb-[10px] text-[26px] tracking-[-0.02em] text-[#f7f8ff]">Coverage across the continent.</h2>
+              <p className="m-0 text-[14px] leading-[1.7] text-[#a8b0d8]">
                 From major lingua francas to local dialects, Afridialect helps you train
                 models that actually understand how people speak in real life.
               </p>
             </div>
-            <div className="lp-section-layout">
+            <div className="grid gap-6 mt-[22px] items-center" style={{ gridTemplateColumns: 'minmax(0,0.9fr) minmax(0,1.1fr)' }}>
               {/* Decorative map */}
-              <div className="lp-dialect-map-shell" aria-hidden="true">
+              <div
+                className="relative min-h-[220px] overflow-hidden border border-[rgba(148,163,184,0.35)]"
+                style={{
+                  borderRadius: '20px',
+                  background: [
+                    'radial-gradient(circle at 50% 0,rgba(15,23,42,0.9),transparent 60%)',
+                    'radial-gradient(circle at 50% 100%,rgba(45,212,191,0.12),transparent 55%)',
+                    'rgba(3,7,18,0.96)',
+                  ].join(', '),
+                }}
+                aria-hidden="true"
+              >
                 <motion.div
-                  className="lp-dialect-map-silhouette"
+                  className="absolute inset-0"
+                  style={{
+                    backgroundImage: [
+                      'radial-gradient(ellipse at 30% 30%,rgba(250,204,21,0.2),transparent 55%)',
+                      'radial-gradient(ellipse at 63% 48%,rgba(56,189,248,0.26),transparent 60%)',
+                      'radial-gradient(ellipse at 60% 100%,rgba(15,23,42,1),rgba(2,6,23,1))',
+                    ].join(', '),
+                    opacity: 0.95,
+                  }}
                   animate={reduced ? undefined : { backgroundPosition: ['0% 0%', '100% 100%', '0% 0%'] }}
                   transition={reduced ? undefined : { duration: 30, repeat: Infinity, ease: 'linear' }}
                 />
-                <div className="lp-dialect-map-grid">
-                  <span className="lp-dialect-node lp-dialect-node--west" />
-                  <span className="lp-dialect-node lp-dialect-node--east" />
-                  <span className="lp-dialect-node lp-dialect-node--south" />
-                  <span className="lp-dialect-node lp-dialect-node--north" />
+                {/* Grid overlay */}
+                <div
+                  className="relative w-full h-full"
+                  style={{
+                    backgroundImage: [
+                      'linear-gradient(to right,rgba(148,163,184,0.18) 1px,transparent 1px)',
+                      'linear-gradient(to bottom,rgba(148,163,184,0.18) 1px,transparent 1px)',
+                    ].join(', '),
+                    backgroundSize: '42px 42px',
+                    maskImage: 'radial-gradient(circle at 50% 50%,black 62%,transparent 82%)',
+                  }}
+                >
+                  {/* Dialect nodes */}
+                  {[
+                    { key: 'west',  style: { left: '34%', top: '42%' } },
+                    { key: 'east',  style: { left: '64%', top: '40%' } },
+                    { key: 'south', style: { left: '54%', bottom: '18%' } },
+                    { key: 'north', style: { left: '48%', top: '22%' } },
+                  ].map((n) => (
+                    <span
+                      key={n.key}
+                      className="absolute w-[10px] h-[10px] rounded-full"
+                      style={{
+                        ...n.style,
+                        background: 'radial-gradient(circle at 30% 20%,#fef9c3,#f97316)',
+                        boxShadow: '0 0 0 1px rgba(250,250,249,0.6),0 0 40px rgba(248,250,252,0.7)',
+                      }}
+                    />
+                  ))}
                 </div>
-                <div className="lp-dialect-soundwave">
-                  <div className="lp-dialect-waveform">
+                {/* Soundwave */}
+                <div
+                  className="absolute left-1/2 -translate-x-1/2 bottom-[18px] w-[120px] h-[80px] rounded-full overflow-hidden flex items-center justify-center"
+                >
+                  <div
+                    className="flex items-end gap-[3px] h-[52px] w-[calc(100%-20px)]"
+                    style={{ padding: '8px 6px', background: 'radial-gradient(circle at 50% 0,rgba(15,23,42,0.9),transparent 60%),rgba(2,6,23,0.65)', borderRadius: '14px' }}
+                  >
                     {Array.from({ length: 18 }).map((_, i) => (
                       <span
                         key={i}
-                        className="lp-dialect-wave-bar"
-                        style={{ '--i': i } as CSSProperties}
+                        className="lp-wave-bar w-[3px] rounded-[999px] opacity-90"
+                        style={{
+                          '--i': i,
+                          backgroundImage: 'linear-gradient(to top,rgba(30,64,175,0.2),#38bdf8,#fbbf24)',
+                          height: `calc(24% + (${i} * 2.8%))`,
+                        } as CSSProperties}
                       />
                     ))}
                   </div>
@@ -350,21 +578,42 @@ export default function Home() {
               </div>
 
               {/* Region cards */}
-              <div className="lp-section-grid lp-section-grid--two">
+              <div className="grid gap-[18px]" style={{ gridTemplateColumns: 'repeat(2,minmax(0,1fr))' }}>
                 {REGIONS.map((region, index) => (
                   <motion.article
                     key={region.region}
-                    className={`lp-card lp-card-dialect ${region.accent}`}
+                    className="relative overflow-hidden border"
+                    style={{
+                      borderRadius: '20px',
+                      padding: '18px 16px 17px',
+                      background: 'radial-gradient(circle at 0 0,rgba(248,250,252,0.05),transparent 60%),rgba(7,11,26,0.96)',
+                      boxShadow: '0 20px 60px rgba(0,0,0,0.8)',
+                      borderColor: region.borderColor,
+                      transition: 'border-color 160ms ease-out,box-shadow 160ms ease-out,transform 160ms ease-out,background 160ms ease-out',
+                    }}
                     initial={{ opacity: 0, y: 32 }}
                     whileInView={{ opacity: 1, y: 0 }}
                     viewport={{ once: true, amount: 0.4 }}
                     transition={{ duration: 0.6, delay: index * 0.08, ease: [0.21, 0.47, 0.32, 0.98] }}
+                    onMouseEnter={e => {
+                      const el = e.currentTarget as HTMLElement
+                      el.style.transform = 'translateY(-2px)'
+                      el.style.boxShadow = '0 24px 70px rgba(0,0,0,0.86)'
+                    }}
+                    onMouseLeave={e => {
+                      const el = e.currentTarget as HTMLElement
+                      el.style.transform = ''
+                      el.style.boxShadow = '0 20px 60px rgba(0,0,0,0.8)'
+                    }}
                   >
-                    <h3 className="lp-card-dialect-title">{region.region}</h3>
-                    <ul className="lp-card-dialect-list">
+                    <h3 className="m-0 mb-2 text-[15px] text-[#f7f8ff]">{region.region}</h3>
+                    <ul className="list-none m-0 p-0 text-[13px] text-[#a8b0d8] space-y-1">
                       {region.items.map((item) => (
-                        <li key={item} className="lp-card-dialect-item">
-                          <span className="lp-card-dialect-dot" />
+                        <li key={item} className="flex items-center gap-[7px]">
+                          <span
+                            className="w-[7px] h-[7px] rounded-full flex-shrink-0"
+                            style={{ background: 'radial-gradient(circle at 30% 20%,#fec,#f97316)' }}
+                          />
                           {item}
                         </li>
                       ))}
@@ -378,7 +627,7 @@ export default function Home() {
 
         {/* ── Why Afridialect ── */}
         <motion.section
-          className="lp-section"
+          className="mt-[72px]"
           initial="hidden"
           whileInView="visible"
           viewport={{ once: true, amount: 0.3 }}
@@ -386,16 +635,27 @@ export default function Home() {
           custom={2}
           id="why-afridialect"
         >
-          <div className="lp-section-shell">
-            <div className="lp-section-header">
-              <p className="lp-section-kicker">Why Afridialect</p>
-              <h2 className="lp-section-title">Critical infrastructure for African voice AI.</h2>
-              <p className="lp-section-body">
+          <div
+            className="rounded-[28px] border border-[rgba(148,163,184,0.26)]"
+            style={{
+              padding: '28px 24px 26px',
+              background: [
+                'radial-gradient(circle at 0% 0%,rgba(245,181,93,0.08),transparent 60%)',
+                'radial-gradient(circle at 100% 100%,rgba(56,189,248,0.08),transparent 60%)',
+                'rgba(8,11,24,0.95)',
+              ].join(', '),
+              boxShadow: '0 24px 80px rgba(0,0,0,0.7)',
+            }}
+          >
+            <div className="max-w-[40rem]">
+              <p className="text-[12px] tracking-[0.12em] uppercase text-[#f5b55d]">Why Afridialect</p>
+              <h2 className="mt-2 mb-[10px] text-[26px] tracking-[-0.02em] text-[#f7f8ff]">Critical infrastructure for African voice AI.</h2>
+              <p className="m-0 text-[14px] leading-[1.7] text-[#a8b0d8]">
                 Generic datasets miss local nuance—intonation, code-switching, blended languages,
                 and accents shaped by region. Afridialect is purpose-built to close that gap for AI teams.
               </p>
             </div>
-            <div className="lp-section-grid lp-section-grid--three">
+            <div className="grid gap-[18px] mt-[22px]" style={{ gridTemplateColumns: 'repeat(3,minmax(0,1fr))' }}>
               {[
                 {
                   title: 'Production-grade quality',
@@ -413,10 +673,32 @@ export default function Home() {
                   bullets: ['Clear contributor terms and payouts', 'Regional representation across the continent', 'Options for sensitive domain controls'],
                 },
               ].map((card) => (
-                <article key={card.title} className="lp-card">
-                  <h3 className="lp-card-value-title">{card.title}</h3>
-                  <p className="lp-card-value-body">{card.body}</p>
-                  <ul className="lp-card-value-list">
+                <article
+                  key={card.title}
+                  className="relative overflow-hidden border border-white/[0.06]"
+                  style={{
+                    borderRadius: '20px',
+                    padding: '18px 16px 17px',
+                    background: 'radial-gradient(circle at 0 0,rgba(248,250,252,0.06),transparent 60%),rgba(7,11,26,0.96)',
+                    boxShadow: '0 20px 60px rgba(0,0,0,0.8)',
+                    transition: 'border-color 160ms ease-out,box-shadow 160ms ease-out,transform 160ms ease-out,background 160ms ease-out',
+                  }}
+                  onMouseEnter={e => {
+                    const el = e.currentTarget as HTMLElement
+                    el.style.transform = 'translateY(-2px)'
+                    el.style.borderColor = 'rgba(245,181,93,0.5)'
+                    el.style.boxShadow = '0 24px 70px rgba(0,0,0,0.86)'
+                  }}
+                  onMouseLeave={e => {
+                    const el = e.currentTarget as HTMLElement
+                    el.style.transform = ''
+                    el.style.borderColor = 'rgba(255,255,255,0.06)'
+                    el.style.boxShadow = '0 20px 60px rgba(0,0,0,0.8)'
+                  }}
+                >
+                  <h3 className="m-0 mb-[7px] text-[15px] text-[#f7f8ff]">{card.title}</h3>
+                  <p className="m-0 text-[13px] text-[#a8b0d8]">{card.body}</p>
+                  <ul className="mt-3 pl-[17px] text-[12px] text-[#7c84af] space-y-[5px]">
                     {card.bullets.map((b) => <li key={b}>{b}</li>)}
                   </ul>
                 </article>
@@ -427,7 +709,7 @@ export default function Home() {
 
         {/* ── Final CTA ── */}
         <motion.section
-          className="lp-section lp-section-final"
+          className="mt-[72px] mb-20"
           initial="hidden"
           whileInView="visible"
           viewport={{ once: true, amount: 0.3 }}
@@ -435,86 +717,166 @@ export default function Home() {
           custom={3}
           id="get-started"
         >
-          <div className="lp-section-shell lp-section-shell--final">
-            <div className="lp-section-header lp-section-header--center">
-              <p className="lp-section-kicker">Get started</p>
-              <h2 className="lp-section-title">Start building African-first voice AI.</h2>
-              <p className="lp-section-body">
+          <div
+            className="rounded-[28px] border border-[rgba(148,163,184,0.26)] text-center"
+            style={{
+              padding: '28px 24px 26px',
+              background: [
+                'radial-gradient(circle at 0 0,rgba(245,181,93,0.12),transparent 60%)',
+                'radial-gradient(circle at 100% 100%,rgba(45,212,191,0.12),transparent 70%)',
+                'linear-gradient(135deg,#020617,#020617 36%,#020617 100%)',
+              ].join(', '),
+              boxShadow: '0 24px 80px rgba(0,0,0,0.7)',
+            }}
+          >
+            <div className="max-w-[40rem] text-center mx-auto mb-[18px]">
+              <p className="text-[12px] tracking-[0.12em] uppercase text-[#f5b55d]">Get started</p>
+              <h2 className="mt-2 mb-[10px] text-[26px] tracking-[-0.02em] text-[#f7f8ff]">Start building African-first voice AI.</h2>
+              <p className="m-0 text-[14px] leading-[1.7] text-[#a8b0d8]">
                 Whether you are training ASR, agents, or evaluation pipelines, Afridialect gives
                 you a single, trusted layer for African speech data—while local contributors earn along the way.
               </p>
             </div>
-            <div className="lp-final-cta-actions">
-              <Link href="/marketplace" className="lp-btn lp-btn-primary lp-btn-lg">Explore datasets</Link>
-              <Link href="/auth/signup" className="lp-btn lp-btn-outline lp-btn-lg">Start contributing</Link>
+            <div className="flex justify-center gap-3">
+              <Link
+                href="/marketplace"
+                className="inline-flex items-center justify-center rounded-[999px] px-[22px] py-[10px] text-[14px] font-medium text-[#0a0712] transition-all duration-[160ms]"
+                style={{ background: 'linear-gradient(135deg,#ff8b3d,#f5b55d)', boxShadow: '0 16px 36px rgba(0,0,0,0.7)' }}
+                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.transform = 'translateY(-1px)'; (e.currentTarget as HTMLElement).style.boxShadow = '0 20px 45px rgba(0,0,0,0.8)' }}
+                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.transform = ''; (e.currentTarget as HTMLElement).style.boxShadow = '0 16px 36px rgba(0,0,0,0.7)' }}
+              >Explore datasets</Link>
+              <Link
+                href="/auth/signup"
+                className="inline-flex items-center justify-center rounded-[999px] px-[22px] py-[10px] text-[14px] font-medium border text-[#f7f8ff] transition-all duration-[160ms]"
+                style={{ borderColor: 'rgba(255,255,255,0.16)', background: 'rgba(8,11,24,0.6)' }}
+                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = 'rgba(255,255,255,0.32)'; (e.currentTarget as HTMLElement).style.background = 'rgba(10,13,28,0.9)' }}
+                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = 'rgba(255,255,255,0.16)'; (e.currentTarget as HTMLElement).style.background = 'rgba(8,11,24,0.6)' }}
+              >Start contributing</Link>
             </div>
-            <p className="lp-final-cta-footnote">
+            <p className="mt-[14px] text-[12px] text-[#a8b0d8]">
               Need something specific?{' '}
-              <a href="mailto:hello@afridialect.ai" className="lp-link">Talk to us about custom datasets</a>.
+              <a
+                href="mailto:hello@afridialect.ai"
+                className="underline"
+                style={{ color: '#2dd4bf', textDecorationColor: 'rgba(45,212,191,0.4)' }}
+                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.textDecorationColor = 'rgba(45,212,191,0.9)' }}
+                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.textDecorationColor = 'rgba(45,212,191,0.4)' }}
+              >Talk to us about custom datasets</a>.
             </p>
           </div>
         </motion.section>
       </main>
 
       {/* ── Powered by ── */}
-      <section className="lp-section-shell lp-poweredby-shell" style={{ margin: '32px 20px 0' }}>
-        <div className="lp-section-header--center">
-          <p className="lp-section-kicker">Powered by</p>
+      <section
+        className="rounded-[28px] border border-[rgba(148,163,184,0.26)]"
+        style={{
+          margin: '32px 20px 0',
+          padding: '28px 24px 26px',
+          background: [
+            'radial-gradient(circle at 0% 0%,rgba(245,181,93,0.08),transparent 60%)',
+            'radial-gradient(circle at 100% 100%,rgba(56,189,248,0.08),transparent 60%)',
+            'rgba(8,11,24,0.95)',
+          ].join(', '),
+          boxShadow: '0 24px 80px rgba(0,0,0,0.7)',
+        }}
+      >
+        <div className="max-w-[40rem] text-center mx-auto mb-[18px]">
+          <p className="text-[12px] tracking-[0.12em] uppercase text-[#f5b55d]">Powered by</p>
         </div>
-        <div className="lp-poweredby-row" aria-label="Technology partners">
+        <div className="flex justify-center gap-5 flex-wrap" aria-label="Technology partners">
           {TECH.map((t) => (
             <a
               key={t.name}
-              className="lp-poweredby-logo"
               href={t.url}
               target="_blank"
               rel="noopener noreferrer"
+              className="flex items-center justify-center min-w-[90px] rounded-[999px] border border-[rgba(148,163,184,0.4)] px-[14px] py-[10px]"
+              style={{
+                background: 'radial-gradient(circle at 0 0,rgba(248,250,252,0.04),transparent 65%),rgba(7,11,26,0.96)',
+                boxShadow: '0 16px 40px rgba(0,0,0,0.85)',
+                transition: 'transform 160ms ease-out,box-shadow 160ms ease-out,border-color 160ms ease-out,background 160ms ease-out',
+              }}
+              onMouseEnter={e => {
+                const el = e.currentTarget as HTMLElement
+                el.style.transform = 'translateY(-2px)'
+                el.style.borderColor = 'rgba(245,181,93,0.6)'
+                el.style.boxShadow = '0 20px 55px rgba(0,0,0,0.9)'
+                const img = el.querySelector('img') as HTMLImageElement | null
+                if (img) { img.style.filter = 'grayscale(0) contrast(1) brightness(1)'; img.style.opacity = '1' }
+              }}
+              onMouseLeave={e => {
+                const el = e.currentTarget as HTMLElement
+                el.style.transform = ''
+                el.style.borderColor = 'rgba(148,163,184,0.4)'
+                el.style.boxShadow = '0 16px 40px rgba(0,0,0,0.85)'
+                const img = el.querySelector('img') as HTMLImageElement | null
+                if (img) { img.style.filter = 'grayscale(1) contrast(1.1) brightness(1.3)'; img.style.opacity = '0.9' }
+              }}
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={t.logo} alt={`${t.name} logo`} className="lp-poweredby-logo-img" />
+              <img
+                src={t.logo}
+                alt={`${t.name} logo`}
+                className="block max-w-full h-[30px]"
+                style={{ filter: 'grayscale(1) contrast(1.1) brightness(1.3)', opacity: 0.9, transition: 'filter 200ms ease,opacity 200ms ease' }}
+              />
             </a>
           ))}
         </div>
       </section>
 
       {/* ── Footer ── */}
-      <footer className="lp-footer-root">
-        <div className="lp-footer-shell">
-          <div className="lp-footer-primary">
-            <div className="lp-footer-brand">
-              <div className="lp-footer-mark">
+      <footer
+        className="mt-8 px-5 pb-8"
+        style={{
+          borderTop: '1px solid rgba(15,23,42,1)',
+          paddingTop: '18px',
+          background: 'radial-gradient(circle at top,rgba(15,23,42,0.8),transparent 60%),#020617',
+        }}
+      >
+        <div className="max-w-[1120px] mx-auto">
+          <div className="flex justify-between gap-9 flex-wrap">
+            {/* Brand */}
+            <div className="flex gap-[10px]">
+              <div className="w-[60px] h-[60px] flex-shrink-0">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src="/assets/logos/afridialect.svg" alt="Afridialect" className="lp-footer-logo-img" />
+                <img src="/assets/logos/afridialect.svg" alt="Afridialect" className="w-full h-full object-contain block" />
               </div>
               <div>
-                <p className="lp-footer-title">Afridialect</p>
-                <p className="lp-footer-body">African Speech Datasets.</p>
+                <p className="m-0 mb-1 text-[25px] font-['Comfortaa',sans-serif] font-bold text-[#f7f8ff]">Afridialect</p>
+                <p className="m-0 text-[13px] text-[#a8b0d8]">African Speech Datasets.</p>
               </div>
             </div>
-            <div className="lp-footer-links">
-              <div className="lp-footer-column">
-                <p className="lp-footer-column-title">Product</p>
-                <a href="#explore"      className="lp-footer-link">Datasets</a>
-                <a href="#how-it-works" className="lp-footer-link">How it works</a>
+            {/* Links */}
+            <div className="flex gap-[30px]">
+              <div>
+                <p className="m-0 mb-2 text-[12px] uppercase tracking-[0.16em] text-[#7c84af]">Product</p>
+                <a href="#explore"      className="block text-[12px] text-[#a8b0d8] mb-[14px] hover:text-[#f7f8ff] transition-colors">Datasets</a>
+                <a href="#how-it-works" className="block text-[12px] text-[#a8b0d8] mb-[14px] hover:text-[#f7f8ff] transition-colors">How it works</a>
               </div>
-              <div className="lp-footer-column">
-                <p className="lp-footer-column-title">Contributors</p>
-                <Link href="/auth/signup"                              className="lp-footer-link">Start contributing</Link>
-                <a href="mailto:contributors@afridialect.ai"           className="lp-footer-link">Contributor support</a>
+              <div>
+                <p className="m-0 mb-2 text-[12px] uppercase tracking-[0.16em] text-[#7c84af]">Contributors</p>
+                <Link href="/auth/signup"                         className="block text-[12px] text-[#a8b0d8] mb-[14px] hover:text-[#f7f8ff] transition-colors">Start contributing</Link>
+                <a href="mailto:contributors@afridialect.ai"      className="block text-[12px] text-[#a8b0d8] mb-[14px] hover:text-[#f7f8ff] transition-colors">Contributor support</a>
               </div>
-              <div className="lp-footer-column">
-                <p className="lp-footer-column-title">Account</p>
-                <Link href="/auth/login"  className="lp-footer-link">Login</Link>
-                <Link href="/auth/signup" className="lp-footer-link">Sign Up</Link>
-                <a href="mailto:hello@afridialect.ai" className="lp-footer-link">Contact</a>
+              <div>
+                <p className="m-0 mb-2 text-[12px] uppercase tracking-[0.16em] text-[#7c84af]">Account</p>
+                <Link href="/auth/login"             className="block text-[12px] text-[#a8b0d8] mb-[14px] hover:text-[#f7f8ff] transition-colors">Login</Link>
+                <Link href="/auth/signup"            className="block text-[12px] text-[#a8b0d8] mb-[14px] hover:text-[#f7f8ff] transition-colors">Sign Up</Link>
+                <a href="mailto:hello@afridialect.ai" className="block text-[12px] text-[#a8b0d8] mb-[14px] hover:text-[#f7f8ff] transition-colors">Contact</a>
               </div>
             </div>
           </div>
-          <div className="lp-footer-secondary">
-            <p className="lp-footer-meta">© {new Date().getFullYear()} Afridialect. All rights reserved.</p>
-            <div className="lp-footer-meta-links">
-              <a href="#" className="lp-footer-link">Privacy</a>
-              <a href="#" className="lp-footer-link">Terms</a>
+          {/* Bottom bar */}
+          <div
+            className="mt-[18px] pt-[14px] flex justify-between items-center text-[11px] text-[#7c84af]"
+            style={{ borderTop: '1px solid rgba(15,23,42,1)' }}
+          >
+            <p className="m-0">© {new Date().getFullYear()} Afridialect. All rights reserved.</p>
+            <div className="flex gap-[14px]">
+              <a href="#" className="text-[#a8b0d8] hover:text-[#f7f8ff] transition-colors">Privacy</a>
+              <a href="#" className="text-[#a8b0d8] hover:text-[#f7f8ff] transition-colors">Terms</a>
             </div>
           </div>
         </div>
@@ -522,4 +884,3 @@ export default function Home() {
     </div>
   )
 }
-

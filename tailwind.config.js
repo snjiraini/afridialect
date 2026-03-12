@@ -57,6 +57,17 @@ module.exports = {
       backdropBlur: {
         xs: '2px',
       },
+      keyframes: {
+        lpHeroWave: {
+          '0%, 100%': { transform: 'translateY(1px) scaleY(0.8)' },
+          '25%':       { transform: 'translateY(-2px) scaleY(1.3)' },
+          '50%':       { transform: 'translateY(0) scaleY(1.6)' },
+          '75%':       { transform: 'translateY(-1px) scaleY(1.1)' },
+        },
+      },
+      animation: {
+        'lp-wave': 'lpHeroWave 2.1s ease-in-out infinite',
+      },
     },
   },
   plugins: [],
