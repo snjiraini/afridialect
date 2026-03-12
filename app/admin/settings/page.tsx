@@ -3,6 +3,8 @@
  * View and manage dialect configuration, pricing, and platform settings.
  */
 
+export const dynamic = 'force-dynamic'
+
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { redirect } from 'next/navigation'

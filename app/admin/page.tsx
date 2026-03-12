@@ -3,6 +3,8 @@
  * Manage users, roles, and view system analytics
  */
 
+export const dynamic = 'force-dynamic'
+
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import Link from 'next/link'

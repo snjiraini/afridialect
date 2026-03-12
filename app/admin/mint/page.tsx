@@ -5,6 +5,8 @@
  * Admin can trigger minting for each clip individually.
  * Also shows recently minted clips.
  */
+export const dynamic = 'force-dynamic'
+
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { redirect } from 'next/navigation'

@@ -4,6 +4,8 @@
  * Auth: any authenticated user (buyers see the catalogue;
  *       buyer role is required only at checkout via the API)
  */
+export const dynamic = 'force-dynamic'
+
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import Topbar from '@/components/layouts/Topbar'
