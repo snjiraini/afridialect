@@ -81,14 +81,14 @@ export default function EditProfilePage() {
 
   if (loading) {
     return (
-      <div className="container mx-auto py-12 px-4">
+      <div className="container-modern py-12">
         <div className="max-w-2xl mx-auto">
-          <div className="animate-pulse">
-            <div className="h-8 bg-gray-300 dark:bg-gray-700 rounded w-1/3 mb-8"></div>
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
+          <div className="animate-pulse space-y-4">
+            <div className="h-8 rounded-xl w-1/3" style={{ background: 'rgba(255,255,255,0.06)' }}></div>
+            <div className="rounded-2xl p-6" style={{ background: 'rgba(12,16,32,0.92)', border: '1px solid rgba(255,255,255,0.08)' }}>
               <div className="space-y-4">
-                <div className="h-4 bg-gray-300 dark:bg-gray-700 rounded w-1/4"></div>
-                <div className="h-10 bg-gray-300 dark:bg-gray-700 rounded"></div>
+                <div className="h-4 rounded w-1/4" style={{ background: 'rgba(255,255,255,0.06)' }}></div>
+                <div className="h-10 rounded-xl" style={{ background: 'rgba(255,255,255,0.06)' }}></div>
               </div>
             </div>
           </div>
@@ -98,41 +98,37 @@ export default function EditProfilePage() {
   }
 
   return (
-    <div className="container mx-auto py-12 px-4">
+    <div className="container-modern py-12">
       <div className="max-w-2xl mx-auto">
         <div className="flex items-center justify-between mb-8">
-          <h1 className="text-4xl font-bold text-gray-900 dark:text-white">
+          <h1 className="text-2xl font-bold" style={{ fontFamily: "'Lexend', sans-serif", color: '#f7f8ff' }}>
             Edit Profile
           </h1>
           <button
+            type="button"
             onClick={() => router.push('/profile')}
-            className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
+            className="btn-ghost text-sm"
           >
             Cancel
           </button>
         </div>
 
         {success && (
-          <div className="mb-6 bg-green-50 dark:bg-green-900/20 border border-green-500 rounded-lg p-4">
-            <p className="text-green-800 dark:text-green-400 font-medium">
-              ✅ Profile updated successfully! Redirecting...
-            </p>
+          <div className="mb-6 p-4 rounded-xl text-sm" style={{ background: 'rgba(16,185,129,0.1)', color: '#34d399', border: '1px solid rgba(16,185,129,0.2)' }}>
+            ✅ Profile updated successfully! Redirecting...
           </div>
         )}
 
         {error && (
-          <div className="mb-6 bg-red-50 dark:bg-red-900/20 border border-red-500 rounded-lg p-4">
-            <p className="text-red-800 dark:text-red-400">{error}</p>
+          <div className="mb-6 p-4 rounded-xl text-sm" style={{ background: 'rgba(239,68,68,0.1)', color: '#f87171', border: '1px solid rgba(239,68,68,0.2)' }}>
+            {error}
           </div>
         )}
 
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
+        <div className="af-card p-6">
           <form onSubmit={handleSubmit} className="space-y-6">
             <div>
-              <label
-                htmlFor="full-name"
-                className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2"
-              >
+              <label htmlFor="full-name" className="block text-xs font-semibold uppercase tracking-wide mb-2" style={{ color: '#7c84af' }}>
                 Full Name
               </label>
               <input
@@ -141,16 +137,16 @@ export default function EditProfilePage() {
                 value={fullName}
                 onChange={(e) => setFullName(e.target.value)}
                 required
-                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-md bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="af-input"
                 placeholder="Enter your full name"
               />
             </div>
 
-            <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-500 rounded-lg p-4">
-              <h3 className="text-blue-800 dark:text-blue-400 font-semibold mb-2">
+            <div className="p-4 rounded-xl" style={{ background: 'rgba(45,212,191,0.06)', border: '1px solid rgba(45,212,191,0.12)' }}>
+              <h3 className="font-semibold mb-2 text-sm" style={{ color: '#2dd4bf' }}>
                 ℹ️ Note
               </h3>
-              <ul className="text-blue-700 dark:text-blue-300 text-sm space-y-1">
+              <ul className="text-sm space-y-1" style={{ color: '#7c84af' }}>
                 <li>• Email address cannot be changed after registration</li>
                 <li>• To change your password, use the "Change Password" link</li>
                 <li>• Hedera account details are read-only for security</li>
@@ -158,18 +154,10 @@ export default function EditProfilePage() {
             </div>
 
             <div className="flex gap-3">
-              <button
-                type="submit"
-                disabled={saving}
-                className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
+              <button type="submit" disabled={saving} className="btn-primary flex-1 justify-center py-2.5">
                 {saving ? 'Saving...' : 'Save Changes'}
               </button>
-              <button
-                type="button"
-                onClick={() => router.push('/profile')}
-                className="px-4 py-2 border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-              >
+              <button type="button" onClick={() => router.push('/profile')} className="btn-secondary px-5">
                 Cancel
               </button>
             </div>

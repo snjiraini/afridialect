@@ -11,6 +11,8 @@ import { usePathname } from 'next/navigation'
 
 /** Routes that should NOT have the sidebar left-margin offset */
 const PUBLIC_ROUTES = ['/']
+/** Route prefixes that should NOT have the sidebar left-margin offset */
+const PUBLIC_PREFIXES = ['/auth/']
 
 export default function ConditionalContentShell({
   children,
@@ -18,10 +20,12 @@ export default function ConditionalContentShell({
   children: React.ReactNode
 }) {
   const pathname = usePathname()
-  const isPublic = PUBLIC_ROUTES.includes(pathname)
+  const isPublic =
+    PUBLIC_ROUTES.includes(pathname) ||
+    PUBLIC_PREFIXES.some((prefix) => pathname.startsWith(prefix))
 
   if (isPublic) {
-    // Public landing page: full width, no sidebar offset
+    // Public / auth pages: full width, no sidebar offset
     return (
       <div className="min-h-screen overflow-x-hidden">
         {children}
@@ -39,3 +43,4 @@ export default function ConditionalContentShell({
     </div>
   )
 }
+

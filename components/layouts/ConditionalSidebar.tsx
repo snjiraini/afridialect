@@ -12,9 +12,14 @@ import Sidebar from './Sidebar'
 
 /** Routes where the sidebar should NOT appear */
 const PUBLIC_ROUTES = ['/']
+/** Route prefixes where the sidebar should NOT appear */
+const PUBLIC_PREFIXES = ['/auth/']
 
 export default function ConditionalSidebar() {
   const pathname = usePathname()
-  if (PUBLIC_ROUTES.includes(pathname)) return null
+  const isPublic =
+    PUBLIC_ROUTES.includes(pathname) ||
+    PUBLIC_PREFIXES.some((prefix) => pathname.startsWith(prefix))
+  if (isPublic) return null
   return <Sidebar />
 }

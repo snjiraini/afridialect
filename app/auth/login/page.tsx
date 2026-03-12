@@ -1,11 +1,12 @@
 /**
- * Login Page - redesigned with AF design system
+ * Login Page — dark SaaS design with logo and amber accent
  */
 'use client'
 
 import { useState, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
+import Image from 'next/image'
 import { useAuth } from '@/hooks/useAuth'
 
 function LoginForm() {
@@ -41,65 +42,67 @@ function LoginForm() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center py-12 px-4" style={{ background: 'var(--af-bg)' }}>
-      <div className="w-full max-w-md">
-        <div className="text-center mb-8">
-          <div className="inline-flex w-14 h-14 rounded-2xl items-center justify-center mb-4 shadow-soft-lg"
-            style={{ background: 'linear-gradient(135deg,var(--af-primary),var(--af-primary-soft))' }}>
-            <svg className="w-7 h-7 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-              <path d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
-            </svg>
-          </div>
-          <h1 className="text-2xl font-bold" style={{ fontFamily: 'Lexend, sans-serif', color: 'var(--af-txt)' }}>
-            Welcome back
-          </h1>
-          <p className="text-sm mt-1" style={{ color: 'var(--af-muted)' }}>
-            Sign in to your Afridialect account
-          </p>
+    <div style={pageStyle}>
+      {/* Subtle corner glows */}
+      <div style={glowTL} aria-hidden="true" />
+      <div style={glowBR} aria-hidden="true" />
+
+      <div style={{ position: 'relative', zIndex: 1, width: '100%', maxWidth: '420px' }}>
+        {/* Logo + wordmark */}
+        <div style={{ textAlign: 'center', marginBottom: '32px' }}>
+          <Link href="/" style={{ display: 'inline-flex', alignItems: 'center', gap: '12px', textDecoration: 'none' }}>
+            <div style={logoWrap}>
+              <Image src="/afridialect.svg" alt="Afridialect" width={40} height={40} style={{ objectFit: 'contain' }} priority />
+            </div>
+            <span style={wordmark}>Afridialect</span>
+          </Link>
+          <h1 style={heading}>Welcome back</h1>
+          <p style={subheading}>Sign in to continue to your workspace</p>
         </div>
 
-        <div className="af-card p-8">
+        {/* Card */}
+        <div style={card}>
           {error && (
-            <div className="mb-5 p-4 rounded-xl text-sm" style={{ background: '#fef2f2', color: '#dc2626', border: '1px solid #fecaca' }}>
-              {error}
-            </div>
+            <div style={errorBox}>{error}</div>
           )}
 
-          <form onSubmit={handleSubmit} method="post" action="#" className="space-y-5">
+          <form onSubmit={handleSubmit} method="post" action="#" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
             <div>
-              <label htmlFor="email" className="block text-xs font-semibold uppercase tracking-wide mb-2" style={{ color: 'var(--af-muted)' }}>
-                Email address
-              </label>
+              <label htmlFor="email" style={labelStyle}>Email address</label>
               <input
                 id="email" name="email" type="email" autoComplete="email" required
                 value={email} onChange={(e) => setEmail(e.target.value)}
-                className="af-input" placeholder="you@example.com"
+                style={inputStyle}
+                onFocus={(e) => { e.currentTarget.style.borderColor = '#f5a623'; e.currentTarget.style.boxShadow = '0 0 0 3px rgba(245,166,35,0.15)' }}
+                onBlur={(e) => { e.currentTarget.style.borderColor = '#30363d'; e.currentTarget.style.boxShadow = 'none' }}
+                placeholder="you@example.com"
               />
             </div>
             <div>
-              <div className="flex items-center justify-between mb-2">
-                <label htmlFor="password" className="block text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--af-muted)' }}>
-                  Password
-                </label>
-                <Link href="/auth/reset-password" className="text-xs hover:underline" style={{ color: 'var(--af-primary)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                <label htmlFor="password" style={labelStyle}>Password</label>
+                <Link href="/auth/reset-password" style={{ fontSize: '12px', color: '#2dd4bf', textDecoration: 'none' }}>
                   Forgot password?
                 </Link>
               </div>
               <input
                 id="password" name="password" type="password" autoComplete="current-password" required
                 value={password} onChange={(e) => setPassword(e.target.value)}
-                className="af-input" placeholder="Enter your password"
+                style={inputStyle}
+                onFocus={(e) => { e.currentTarget.style.borderColor = '#f5a623'; e.currentTarget.style.boxShadow = '0 0 0 3px rgba(245,166,35,0.15)' }}
+                onBlur={(e) => { e.currentTarget.style.borderColor = '#30363d'; e.currentTarget.style.boxShadow = 'none' }}
+                placeholder="Enter your password"
               />
             </div>
 
-            <button type="submit" disabled={loading} className="btn-primary w-full justify-center py-3 text-base">
-              {loading ? 'Signing in...' : 'Sign In'}
+            <button type="submit" disabled={loading} style={submitBtn(loading)}>
+              {loading ? 'Signing in…' : 'Sign In'}
             </button>
           </form>
 
-          <p className="text-center text-sm mt-6" style={{ color: 'var(--af-muted)' }}>
+          <p style={footerText}>
             Don&apos;t have an account?{' '}
-            <Link href="/auth/signup" className="font-semibold hover:underline" style={{ color: 'var(--af-primary)' }}>
+            <Link href="/auth/signup" style={{ color: '#f5a623', fontWeight: 600, textDecoration: 'none' }}>
               Create one
             </Link>
           </p>
@@ -109,11 +112,103 @@ function LoginForm() {
   )
 }
 
+/* ── Inline styles ────────────────────────────────────────────────────────── */
+
+const pageStyle: React.CSSProperties = {
+  minHeight: '100vh',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  padding: '48px 16px',
+  background: '#0d1117',
+  fontFamily: "'Inter', system-ui, -apple-system, sans-serif",
+  position: 'relative',
+  overflow: 'hidden',
+}
+
+const glowTL: React.CSSProperties = {
+  position: 'absolute', top: 0, left: 0, width: '500px', height: '500px',
+  background: 'radial-gradient(circle, rgba(245,166,35,0.06) 0%, transparent 70%)',
+  pointerEvents: 'none',
+}
+
+const glowBR: React.CSSProperties = {
+  position: 'absolute', bottom: 0, right: 0, width: '500px', height: '500px',
+  background: 'radial-gradient(circle, rgba(45,212,191,0.05) 0%, transparent 70%)',
+  pointerEvents: 'none',
+}
+
+const logoWrap: React.CSSProperties = {
+  width: '44px', height: '44px', borderRadius: '12px', overflow: 'hidden',
+  background: 'rgba(245,166,35,0.1)', border: '1px solid rgba(245,166,35,0.2)',
+  display: 'flex', alignItems: 'center', justifyContent: 'center',
+}
+
+const wordmark: React.CSSProperties = {
+  fontFamily: "'Comfortaa', system-ui, sans-serif",
+  fontWeight: 700, fontSize: '20px', color: '#e6edf3',
+}
+
+const heading: React.CSSProperties = {
+  marginTop: '24px', marginBottom: '6px',
+  fontSize: '24px', fontWeight: 700, color: '#e6edf3',
+  fontFamily: "'Inter', system-ui, sans-serif",
+}
+
+const subheading: React.CSSProperties = {
+  fontSize: '14px', color: '#6e7681', margin: 0,
+}
+
+const card: React.CSSProperties = {
+  background: '#161b22',
+  border: '1px solid #30363d',
+  borderRadius: '16px',
+  padding: '32px',
+  backdropFilter: 'blur(12px)',
+}
+
+const errorBox: React.CSSProperties = {
+  marginBottom: '20px', padding: '14px 16px',
+  borderRadius: '10px', fontSize: '14px', color: '#f85149',
+  background: 'rgba(248,81,73,0.1)', border: '1px solid rgba(248,81,73,0.2)',
+}
+
+const labelStyle: React.CSSProperties = {
+  display: 'block', fontSize: '12px', fontWeight: 600,
+  textTransform: 'uppercase', letterSpacing: '0.05em',
+  color: '#8b949e', marginBottom: '8px',
+}
+
+const inputStyle: React.CSSProperties = {
+  display: 'block', width: '100%', padding: '11px 14px',
+  borderRadius: '10px', border: '1px solid #30363d',
+  background: '#0d1117', color: '#e6edf3', fontSize: '14px',
+  fontFamily: 'inherit', outline: 'none',
+  transition: 'border-color 0.2s, box-shadow 0.2s',
+  boxSizing: 'border-box',
+}
+
+const submitBtn = (disabled: boolean): React.CSSProperties => ({
+  display: 'flex', alignItems: 'center', justifyContent: 'center',
+  width: '100%', padding: '13px 20px',
+  borderRadius: '10px', border: 'none', cursor: disabled ? 'not-allowed' : 'pointer',
+  background: disabled ? 'rgba(245,166,35,0.4)' : 'linear-gradient(135deg, #f5a623, #e8960e)',
+  color: '#0d1117', fontSize: '15px', fontWeight: 700,
+  boxShadow: disabled ? 'none' : '0 4px 16px rgba(245,166,35,0.3)',
+  transition: 'all 0.2s ease',
+  opacity: disabled ? 0.7 : 1,
+})
+
+const footerText: React.CSSProperties = {
+  textAlign: 'center', fontSize: '14px', color: '#6e7681',
+  marginTop: '24px', marginBottom: 0,
+}
+
 export default function LoginPage() {
   return (
     <Suspense fallback={
-      <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--af-bg)' }}>
-        <div className="text-sm" style={{ color: 'var(--af-muted)' }}>Loading...</div>
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#0d1117' }}>
+        <div style={{ fontSize: '14px', color: '#6e7681' }}>Loading…</div>
       </div>
     }>
       <LoginForm />

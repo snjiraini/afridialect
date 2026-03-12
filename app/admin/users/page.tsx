@@ -46,150 +46,98 @@ export default async function AdminUsersPage() {
     .order('created_at', { ascending: false })
 
   return (
-    <div className="container mx-auto py-12 px-4">
-      <div className="max-w-7xl mx-auto">
+    <>
+      <div className="container-modern py-8 space-y-6">
         {/* Header */}
-        <div className="flex items-center justify-between mb-8">
+        <div className="flex items-center justify-between">
           <div>
-            <Link
-              href="/admin"
-              className="text-blue-600 dark:text-blue-400 hover:underline text-sm mb-2 inline-block"
-            >
+            <Link href="/admin" className="text-sm font-medium hover:underline mb-2 inline-block" style={{ color: 'var(--af-primary)' }}>
               ← Back to Admin Dashboard
             </Link>
-            <h1 className="text-4xl font-bold text-gray-900 dark:text-white">
+            <h1 className="text-2xl font-bold" style={{ fontFamily: "'Lexend', sans-serif", color: 'var(--af-txt)' }}>
               User Management
             </h1>
           </div>
         </div>
 
         {/* Statistics */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4">
-            <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">Total Users</p>
-            <p className="text-2xl font-bold text-gray-900 dark:text-white">
-              {users?.length || 0}
-            </p>
-          </div>
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4">
-            <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">With Hedera</p>
-            <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">
-              {users?.filter((u) => u.hedera_account_id).length || 0}
-            </p>
-          </div>
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4">
-            <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">Admins</p>
-            <p className="text-2xl font-bold text-purple-600 dark:text-purple-400">
-              {users?.filter((u) => u.user_roles?.some((r: any) => r.role === 'admin')).length || 0}
-            </p>
-          </div>
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4">
-            <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">This Week</p>
-            <p className="text-2xl font-bold text-green-600 dark:text-green-400">
-              {users?.filter((u) => {
-                const weekAgo = new Date()
-                weekAgo.setDate(weekAgo.getDate() - 7)
-                return new Date(u.created_at) > weekAgo
-              }).length || 0}
-            </p>
-          </div>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+          {[
+            { label: 'Total Users', value: users?.length || 0, color: 'var(--af-txt)' },
+            { label: 'With Hedera', value: users?.filter((u) => u.hedera_account_id).length || 0, color: 'var(--af-primary)' },
+            { label: 'Admins', value: users?.filter((u) => u.user_roles?.some((r: any) => r.role === 'admin')).length || 0, color: '#a78bfa' },
+            { label: 'This Week', value: users?.filter((u) => {
+              const weekAgo = new Date(); weekAgo.setDate(weekAgo.getDate() - 7)
+              return new Date(u.created_at) > weekAgo
+            }).length || 0, color: 'var(--af-success)' },
+          ].map(({ label, value, color }) => (
+            <div key={label} className="af-card p-5">
+              <p className="text-xs mb-1" style={{ color: 'var(--af-muted)' }}>{label}</p>
+              <p className="text-2xl font-bold" style={{ color }}>{value}</p>
+            </div>
+          ))}
         </div>
 
         {/* Create Test User Form */}
-        <div className="mb-8">
-          <CreateTestUserForm />
-        </div>
+        <CreateTestUserForm />
 
         {/* Users Table */}
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden">
+        <div className="af-card overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-              <thead className="bg-gray-50 dark:bg-gray-900">
+            <table className="af-table">
+              <thead>
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    User
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    Roles
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    Hedera Account
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    Joined
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    Actions
-                  </th>
+                  {['User', 'Roles', 'Hedera Account', 'Joined', 'Actions'].map((h) => (
+                    <th key={h}>{h}</th>
+                  ))}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+              <tbody>
                 {users && users.length > 0 ? (
                   users.map((user) => {
                     const roles = user.user_roles?.map((r: any) => r.role) || []
                     return (
-                      <tr key={user.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
-                        <td className="px-6 py-4">
+                      <tr key={user.id}>
+                        <td>
                           <div>
-                            <p className="text-sm font-medium text-gray-900 dark:text-white">
-                              {user.full_name || 'No name'}
-                            </p>
-                            <p className="text-sm text-gray-500 dark:text-gray-400">
-                              {user.email}
-                            </p>
+                            <p className="text-sm font-medium" style={{ color: 'var(--af-txt)' }}>{user.full_name || 'No name'}</p>
+                            <p className="text-xs" style={{ color: 'var(--af-muted)' }}>{user.email}</p>
                           </div>
                         </td>
-                        <td className="px-6 py-4">
+                        <td>
                           {roles.length > 0 ? (
                             <div className="flex flex-wrap gap-1">
                               {roles.map((role: string) => (
-                                <span
-                                  key={role}
-                                  className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-400"
-                                >
-                                  {role}
-                                </span>
+                                <span key={role} className="badge badge-primary capitalize">{role}</span>
                               ))}
                             </div>
                           ) : (
-                            <span className="text-xs text-gray-500 dark:text-gray-400">
-                              No roles
-                            </span>
+                            <span className="text-xs" style={{ color: 'var(--af-muted)' }}>No roles</span>
                           )}
                         </td>
-                        <td className="px-6 py-4">
+                        <td>
                           {user.hedera_account_id ? (
                             <div>
-                              <p className="text-xs font-mono text-green-600 dark:text-green-400">
-                                {user.hedera_account_id}
-                              </p>
+                              <p className="text-xs font-mono" style={{ color: '#34d399' }}>{user.hedera_account_id}</p>
                               <a
                                 href={`https://hashscan.io/testnet/account/${user.hedera_account_id}`}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
+                                className="text-xs hover:underline"
+                                style={{ color: 'var(--af-primary)' }}
                               >
                                 View on HashScan ↗
                               </a>
                             </div>
                           ) : (
-                            <span className="text-xs text-gray-500 dark:text-gray-400">
-                              Not created
-                            </span>
+                            <span className="text-xs" style={{ color: 'var(--af-muted)' }}>Not created</span>
                           )}
                         </td>
-                        <td className="px-6 py-4 text-sm text-gray-600 dark:text-gray-400">
-                          {new Date(user.created_at).toLocaleDateString('en-US', {
-                            month: 'short',
-                            day: 'numeric',
-                            year: 'numeric',
-                          })}
+                        <td className="text-sm" style={{ color: 'var(--af-muted)' }}>
+                          {new Date(user.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                         </td>
-                        <td className="px-6 py-4">
-                          <Link
-                            href={`/admin/users/${user.id}`}
-                            className="text-blue-600 dark:text-blue-400 hover:underline text-sm font-medium"
-                          >
+                        <td>
+                          <Link href={`/admin/users/${user.id}`} className="text-sm font-medium hover:underline" style={{ color: 'var(--af-primary)' }}>
                             Manage
                           </Link>
                         </td>
@@ -198,10 +146,7 @@ export default async function AdminUsersPage() {
                   })
                 ) : (
                   <tr>
-                    <td
-                      colSpan={5}
-                      className="px-6 py-12 text-center text-gray-600 dark:text-gray-400"
-                    >
+                    <td colSpan={5} className="text-center py-12" style={{ color: 'var(--af-muted)' }}>
                       No users found
                     </td>
                   </tr>
@@ -212,17 +157,15 @@ export default async function AdminUsersPage() {
         </div>
 
         {/* Info Box */}
-        <div className="mt-6 bg-blue-50 dark:bg-blue-900/20 border border-blue-500 rounded-lg p-4">
-          <h3 className="text-blue-800 dark:text-blue-400 font-semibold mb-2">
-            ℹ️ User Management
-          </h3>
-          <ul className="text-blue-700 dark:text-blue-300 text-sm space-y-1">
+        <div className="p-4 rounded-xl" style={{ background: 'rgba(45,212,191,0.06)', border: '1px solid rgba(45,212,191,0.14)' }}>
+          <h3 className="font-semibold mb-2 text-sm" style={{ color: 'var(--af-primary)' }}>ℹ️ User Management</h3>
+          <ul className="text-sm space-y-1" style={{ color: 'var(--af-muted)' }}>
             <li>• Click "Manage" to view user details and assign roles</li>
             <li>• Hedera accounts are created by users from their dashboard</li>
             <li>• Role assignments control access to different platform features</li>
           </ul>
         </div>
       </div>
-    </div>
+    </>
   )
 }

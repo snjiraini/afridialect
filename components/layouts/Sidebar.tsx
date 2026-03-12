@@ -216,19 +216,20 @@ export default function Sidebar() {
       style={{
         zIndex: 40,
         width: 'var(--af-sidebar-w)',
-        background: 'linear-gradient(180deg, var(--af-sidebar-from) 0%, var(--af-sidebar-to) 100%)',
+        background: 'linear-gradient(180deg, #161b22 0%, #0d1117 100%)',
+        borderRight: '1px solid #30363d',
         color: 'var(--af-sidebar-text)',
         padding: '24px 16px',
-        boxShadow: 'var(--af-shadow)',
+        boxShadow: '4px 0 24px rgba(1, 4, 9, 0.5)',
         transition: 'background 0.4s ease',
       }}
     >
       {/* Brand */}
       <div className="flex items-center gap-3 px-1 mb-1">
-        <div className="w-9 h-9 rounded-xl overflow-hidden flex-shrink-0 shadow-inner bg-white/10">
+        <div className="w-9 h-9 rounded-xl overflow-hidden flex-shrink-0 shadow-inner" style={{ background: 'rgba(245, 166, 35, 0.12)', border: '1px solid rgba(245, 166, 35, 0.2)' }}>
           <Image
-            src="/afridialect_logo.png"
-            alt="Afridialect.ai"
+            src="/afridialect.svg"
+            alt="Afridialect"
             width={36}
             height={36}
             className="w-full h-full object-contain"
@@ -236,10 +237,10 @@ export default function Sidebar() {
           />
         </div>
         <div>
-          <div className="font-bold text-base leading-tight" style={{ fontFamily: 'system-ui, sans-serif' }}>
-            Afridialect.ai
+          <div className="font-bold text-base leading-tight" style={{ fontFamily: "'Comfortaa', system-ui, sans-serif", color: '#e6edf3' }}>
+            Afridialect
           </div>
-          <div className="text-[10px] leading-tight mt-0.5" style={{ opacity: 0.65 }}>
+          <div className="text-[10px] leading-tight mt-0.5" style={{ color: '#6e7681' }}>
             African Speech Datasets
           </div>
         </div>
@@ -249,22 +250,22 @@ export default function Sidebar() {
       {user && (
         <div
           className="flex items-center gap-3 p-3 rounded-2xl flex-shrink-0"
-          style={{ background: 'rgba(255,255,255,0.12)' }}
+          style={{ background: 'rgba(245, 166, 35, 0.08)', border: '1px solid rgba(245, 166, 35, 0.15)' }}
         >
           <div className="af-avatar w-10 h-10 text-sm flex-shrink-0" aria-hidden="true">
             {avatarInitials}
           </div>
           <div className="flex-1 min-w-0">
-            <div className="text-sm font-semibold truncate leading-tight">{firstName}</div>
+            <div className="text-sm font-semibold truncate leading-tight" style={{ color: '#e6edf3' }}>{firstName}</div>
             <div className="flex items-center gap-1.5 mt-0.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 flex-shrink-0" />
-              <span className="text-[11px]" style={{ opacity: 0.75 }}>Active</span>
+              <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: '#3fb950' }} />
+              <span className="text-[11px]" style={{ color: '#6e7681' }}>Active</span>
             </div>
           </div>
           {userRoles.length > 0 && (
             <span
               className="text-[10px] px-2 py-0.5 rounded-full font-semibold capitalize flex-shrink-0"
-              style={{ background: 'rgba(255,255,255,0.18)' }}
+              style={{ background: 'rgba(245, 166, 35, 0.15)', color: '#f5a623', border: '1px solid rgba(245, 166, 35, 0.25)' }}
             >
               {userRoles[0]}
             </span>
@@ -303,7 +304,7 @@ export default function Sidebar() {
                 {isActive && (
                   <span
                     className="w-1.5 h-1.5 rounded-full flex-shrink-0"
-                    style={{ background: 'rgba(255,255,255,0.9)' }}
+                    style={{ background: '#f5a623' }}
                   />
                 )}
               </Link>
@@ -315,7 +316,7 @@ export default function Sidebar() {
       {/* Footer */}
       <div
         className="flex items-center gap-2 pt-3 flex-shrink-0"
-        style={{ borderTop: '1px solid rgba(255,255,255,0.15)' }}
+        style={{ borderTop: '1px solid #30363d' }}
       >
         {/* Sign-out button — standalone, NOT wrapped in any Link */}
         {user && (
@@ -326,18 +327,22 @@ export default function Sidebar() {
             aria-label="Sign out of Afridialect"
             className="flex-1 flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm font-medium"
             style={{
-              color: 'var(--af-sidebar-text)',
+              color: '#6e7681',
               background: 'transparent',
               border: 'none',
-              transition: 'background 0.2s ease, opacity 0.2s ease',
+              transition: 'background 0.2s ease, color 0.2s ease',
               opacity: signingOut ? 0.55 : 1,
               cursor: signingOut ? 'not-allowed' : 'pointer',
             }}
             onMouseEnter={(e) => {
-              if (!signingOut) e.currentTarget.style.background = 'rgba(255,255,255,0.13)'
+              if (!signingOut) {
+                e.currentTarget.style.background = 'rgba(239, 68, 68, 0.1)'
+                e.currentTarget.style.color = '#f87171'
+              }
             }}
             onMouseLeave={(e) => {
               e.currentTarget.style.background = 'transparent'
+              e.currentTarget.style.color = '#6e7681'
             }}
           >
             <SignOutIcon />

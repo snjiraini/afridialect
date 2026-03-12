@@ -64,16 +64,16 @@ export default function CreateTestUserForm() {
   }
 
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
-      <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
+    <div className="af-card p-6">
+      <h3 className="text-lg font-semibold mb-4" style={{ color: 'var(--af-txt)' }}>
         Create Test User
       </h3>
-      
-      <div className="mb-4 p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-500 rounded-lg">
-        <p className="text-sm text-yellow-800 dark:text-yellow-400 mb-2">
-          ⚠️ <strong>Email Domain Validation:</strong>
+
+      <div className="mb-4 p-3 rounded-xl" style={{ background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.2)' }}>
+        <p className="text-sm font-semibold mb-2" style={{ color: '#fbbf24' }}>
+          ⚠️ Email Domain Validation:
         </p>
-        <ul className="text-xs text-yellow-700 dark:text-yellow-300 space-y-1 ml-4">
+        <ul className="text-xs space-y-1" style={{ color: '#a8b0d8' }}>
           <li>• Supabase validates email domains (checks DNS/MX records)</li>
           <li>• Use real domains: gmail.com, yahoo.com, outlook.com, etc.</li>
           <li>• Or use test services: mailinator.com, guerrillamail.com</li>
@@ -83,7 +83,7 @@ export default function CreateTestUserForm() {
 
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+          <label className="block text-xs font-semibold uppercase tracking-wide mb-2" style={{ color: 'var(--af-muted)' }}>
             Email *
           </label>
           <div className="flex gap-2">
@@ -92,24 +92,20 @@ export default function CreateTestUserForm() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="test123@gmail.com"
-              className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+              className="af-input flex-1"
               required
             />
-            <button
-              type="button"
-              onClick={generateTestEmail}
-              className="px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 text-sm"
-            >
+            <button type="button" onClick={generateTestEmail} className="btn-secondary px-4 text-sm whitespace-nowrap">
               Generate
             </button>
           </div>
-          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+          <p className="text-xs mt-1" style={{ color: 'var(--af-muted)' }}>
             Use domains with valid MX records (gmail.com, yahoo.com, etc.)
           </p>
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+          <label className="block text-xs font-semibold uppercase tracking-wide mb-2" style={{ color: 'var(--af-muted)' }}>
             Password *
           </label>
           <input
@@ -117,14 +113,14 @@ export default function CreateTestUserForm() {
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             placeholder="Minimum 8 characters"
-            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+            className="af-input"
             required
             minLength={8}
           />
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+          <label className="block text-xs font-semibold uppercase tracking-wide mb-2" style={{ color: 'var(--af-muted)' }}>
             Full Name
           </label>
           <input
@@ -132,27 +128,23 @@ export default function CreateTestUserForm() {
             value={fullName}
             onChange={(e) => setFullName(e.target.value)}
             placeholder="Test User (optional)"
-            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+            className="af-input"
           />
         </div>
 
         {error && (
-          <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-500 rounded-lg">
-            <p className="text-sm text-red-800 dark:text-red-400">❌ {error}</p>
+          <div className="p-3 rounded-xl text-sm" style={{ background: 'rgba(239,68,68,0.1)', color: '#f87171', border: '1px solid rgba(239,68,68,0.2)' }}>
+            ❌ {error}
           </div>
         )}
 
         {success && (
-          <div className="p-3 bg-green-50 dark:bg-green-900/20 border border-green-500 rounded-lg">
-            <p className="text-sm text-green-800 dark:text-green-400">✅ {success}</p>
+          <div className="p-3 rounded-xl text-sm" style={{ background: 'rgba(16,185,129,0.1)', color: '#34d399', border: '1px solid rgba(16,185,129,0.2)' }}>
+            ✅ {success}
           </div>
         )}
 
-        <button
-          type="submit"
-          disabled={loading}
-          className="w-full px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white rounded-lg font-medium transition-colors"
-        >
+        <button type="submit" disabled={loading} className="btn-primary w-full justify-center py-2.5">
           {loading ? 'Creating...' : 'Create User'}
         </button>
       </form>

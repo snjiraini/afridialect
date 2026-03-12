@@ -45,17 +45,12 @@ export default function Topbar({ title, subtitle }: TopbarProps) {
       className="sticky top-0 flex items-center gap-4 px-6"
       style={{
         height: 'var(--af-topbar-h)',
-        /*
-         * Z-index 30: below sidebar (40) so sidebar shadow renders on top
-         * when sidebar overlaps the topbar corner.
-         * Above page body content (0).
-         */
         zIndex: 30,
-        background: 'var(--af-panel)',
-        borderBottom: '1px solid var(--af-line)',
+        background: 'rgba(13, 17, 23, 0.9)',
+        borderBottom: '1px solid #30363d',
+        backdropFilter: 'blur(16px)',
+        WebkitBackdropFilter: 'blur(16px)',
         transition: 'background 0.3s ease, border-color 0.3s ease',
-        /* Prevent content from bleeding under the topbar on scroll */
-        backdropFilter: 'none',
       }}
     >
       {/* Page title */}
@@ -63,7 +58,7 @@ export default function Topbar({ title, subtitle }: TopbarProps) {
         {title && (
           <h1
             className="text-base font-semibold truncate leading-tight"
-            style={{ color: 'var(--af-txt)', fontFamily: 'Lexend, sans-serif' }}
+            style={{ color: 'var(--af-txt)', fontFamily: 'Lexend, Inter, sans-serif' }}
           >
             {title}
           </h1>
@@ -92,8 +87,8 @@ export default function Topbar({ title, subtitle }: TopbarProps) {
           <span
             className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full border-2"
             style={{
-              background: '#ef4444',
-              borderColor: 'var(--af-panel)',
+              background: '#f85149',
+              borderColor: '#161b22',
             }}
             aria-hidden="true"
           />
@@ -105,7 +100,8 @@ export default function Topbar({ title, subtitle }: TopbarProps) {
             href="/profile"
             className="flex items-center gap-2 px-3 py-1.5 rounded-xl transition-all duration-200"
             style={{
-              background: 'var(--af-item-hover)',
+              background: 'rgba(245,166,35,0.08)',
+              border: '1px solid rgba(245,166,35,0.15)',
               textDecoration: 'none',
             }}
             aria-label="Go to profile"
@@ -129,4 +125,3 @@ export default function Topbar({ title, subtitle }: TopbarProps) {
     </header>
   )
 }
-
