@@ -6,7 +6,7 @@
 'use client'
 
 import { createContext, useContext, useEffect, useRef, useState } from 'react'
-import { User, Session } from '@supabase/supabase-js'
+import { AuthChangeEvent, Session, User } from '@supabase/supabase-js'
 import { createClient } from '@/lib/supabase/client'
 import type { UserRole } from '@/types'
 
@@ -27,12 +27,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [session, setSession] = useState<Session | null>(null)
   const [loading, setLoading] = useState(true)
-  const supabaseRef = useRef(createClient())
-  const supabase = supabaseRef.current
+  // Lazy ref: createClient() is called inside useEffect so it never runs
+  // during server-side prerendering (where env vars may be absent).
+  const supabaseRef = useRef<ReturnType<typeof createClient> | null>(null)
 
   useEffect(() => {
+    // Initialise the client on first mount (browser only)
+    if (!supabaseRef.current) {
+      supabaseRef.current = createClient()
+    }
+    const supabase = supabaseRef.current
+    if (!supabase) return
+
     // Get initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(({ data: { session } }: { data: { session: Session | null } }) => {
       setSession(session)
       setUser(session?.user ?? null)
       setLoading(false)
@@ -41,7 +49,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Listen for auth changes
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
+    } = supabase.auth.onAuthStateChange((_event: AuthChangeEvent, session: Session | null) => {
       setSession(session)
       setUser(session?.user ?? null)
       setLoading(false)
@@ -53,7 +61,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signIn = async (email: string, password: string) => {
     try {
       console.log('signIn: Starting authentication for', email)
-      const { data, error } = await supabase.auth.signInWithPassword({
+      const { data, error } = await supabaseRef.current!.auth.signInWithPassword({
         email,
         password,
       })
@@ -74,7 +82,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signUp = async (email: string, password: string, fullName: string) => {
     try {
       console.log('signUp: Creating account for', email)
-      const { data, error } = await supabase.auth.signUp({
+      const { data, error } = await supabaseRef.current!.auth.signUp({
         email,
         password,
         options: {
@@ -106,7 +114,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // scope: 'local' clears the browser session without a network call to
     // /auth/v1/logout (which can fail with NetworkError due to CORS or
     // connectivity issues). The server-side refresh token expires on its own.
-    await supabase.auth.signOut({ scope: 'local' })
+    await supabaseRef.current!.auth.signOut({ scope: 'local' })
     // Hard-navigate to login so all React state is wiped and the middleware
     // sees a fully unauthenticated request — prevents stale-state loops.
     window.location.href = '/auth/login'
@@ -114,7 +122,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const resetPassword = async (email: string) => {
     try {
-      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      const { error } = await supabaseRef.current!.auth.resetPasswordForEmail(email, {
         redirectTo: `${window.location.origin}/auth/reset-password`,
       })
       return { error }
@@ -125,7 +133,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const updatePassword = async (password: string) => {
     try {
-      const { error } = await supabase.auth.updateUser({
+      const { error } = await supabaseRef.current!.auth.updateUser({
         password,
       })
       return { error }

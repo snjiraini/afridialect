@@ -5,7 +5,7 @@
 
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useAuth } from './useAuth'
 import type { UserRole } from '@/types'
@@ -29,7 +29,13 @@ export function useUser() {
   const [profile, setProfile] = useState<UserProfileWithRoles | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
-  const supabase = createClient()
+  // Lazy ref: avoid calling createClient() at render time (would crash during
+  // Next.js static prerendering where env vars are absent).
+  const supabaseRef = useRef<ReturnType<typeof createClient> | null>(null)
+  function getSupabase() {
+    if (!supabaseRef.current) supabaseRef.current = createClient()
+    return supabaseRef.current
+  }
 
   useEffect(() => {
     if (!user) {
@@ -44,7 +50,7 @@ export function useUser() {
         setError(null)
 
         // Get profile
-        const { data: profileData, error: profileError } = await supabase
+        const { data: profileData, error: profileError } = await getSupabase()
           .from('profiles')
           .select('*')
           .eq('id', user!.id)
@@ -53,7 +59,7 @@ export function useUser() {
         if (profileError) throw profileError
 
         // Get roles
-        const { data: rolesData, error: rolesError } = await supabase
+        const { data: rolesData, error: rolesError } = await getSupabase()
           .from('user_roles')
           .select('role')
           .eq('user_id', user!.id)
@@ -62,7 +68,7 @@ export function useUser() {
 
         setProfile({
           ...profileData,
-          roles: rolesData.map((r) => r.role as UserRole),
+          roles: rolesData.map((r: { role: string }) => r.role as UserRole),
         })
       } catch (err) {
         setError(err as Error)
@@ -72,12 +78,12 @@ export function useUser() {
     }
 
     loadProfile()
-  }, [user, supabase])
+  }, [user])
 
   const updateProfile = async (updates: Partial<UserProfile>) => {
     if (!user) throw new Error('No user logged in')
 
-    const { error } = await supabase
+    const { error } = await getSupabase()
       .from('profiles')
       .update(updates)
       .eq('id', user.id)
@@ -85,7 +91,7 @@ export function useUser() {
     if (error) throw error
 
     // Reload profile
-    const { data } = await supabase
+    const { data } = await getSupabase()
       .from('profiles')
       .select('*')
       .eq('id', user.id)
