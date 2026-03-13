@@ -27,17 +27,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [session, setSession] = useState<Session | null>(null)
   const [loading, setLoading] = useState(true)
-  // Lazy ref: createClient() is called inside useEffect so it never runs
-  // during server-side prerendering (where env vars may be absent).
-  const supabaseRef = useRef<ReturnType<typeof createClient> | null>(null)
+  // createClient() returns a singleton browser client — always valid in the
+  // browser (NEXT_PUBLIC_* vars are baked into the bundle at build time).
+  const supabaseRef = useRef(createClient())
 
   useEffect(() => {
-    // Initialise the client on first mount (browser only)
-    if (!supabaseRef.current) {
-      supabaseRef.current = createClient()
-    }
     const supabase = supabaseRef.current
-    if (!supabase) return
 
     // Get initial session
     supabase.auth.getSession().then(({ data: { session } }: { data: { session: Session | null } }) => {

@@ -5,18 +5,19 @@
 
 import { createBrowserClient } from '@supabase/ssr'
 
+// Module-level singleton — createBrowserClient is safe to call at module
+// evaluation time in the browser because NEXT_PUBLIC_* vars are baked into
+// the JS bundle at build time by Next.js.
+// During server-side rendering of client components Next.js also makes these
+// vars available, so this never throws.
+let client: ReturnType<typeof createBrowserClient> | null = null
+
 export function createClient() {
-  // Guard: env vars are absent during Next.js static prerendering at build
-  // time. Return null-safe no-op; real calls happen only in the browser where
-  // env vars are always present.
-  if (
-    !process.env.NEXT_PUBLIC_SUPABASE_URL ||
-    !process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
-  ) {
-    return null as unknown as ReturnType<typeof createBrowserClient>
+  if (!client) {
+    client = createBrowserClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!
+    )
   }
-  return createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL,
-    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
-  )
+  return client
 }

@@ -5,7 +5,7 @@
 
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useAuth } from './useAuth'
 import type { UserRole } from '@/types'
@@ -29,13 +29,8 @@ export function useUser() {
   const [profile, setProfile] = useState<UserProfileWithRoles | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
-  // Lazy ref: avoid calling createClient() at render time (would crash during
-  // Next.js static prerendering where env vars are absent).
-  const supabaseRef = useRef<ReturnType<typeof createClient> | null>(null)
-  function getSupabase() {
-    if (!supabaseRef.current) supabaseRef.current = createClient()
-    return supabaseRef.current
-  }
+  // createClient() returns a singleton — always valid in the browser.
+  const supabase = createClient()
 
   useEffect(() => {
     if (!user) {
@@ -50,7 +45,7 @@ export function useUser() {
         setError(null)
 
         // Get profile
-        const { data: profileData, error: profileError } = await getSupabase()
+        const { data: profileData, error: profileError } = await supabase
           .from('profiles')
           .select('*')
           .eq('id', user!.id)
@@ -59,7 +54,7 @@ export function useUser() {
         if (profileError) throw profileError
 
         // Get roles
-        const { data: rolesData, error: rolesError } = await getSupabase()
+        const { data: rolesData, error: rolesError } = await supabase
           .from('user_roles')
           .select('role')
           .eq('user_id', user!.id)
@@ -83,7 +78,7 @@ export function useUser() {
   const updateProfile = async (updates: Partial<UserProfile>) => {
     if (!user) throw new Error('No user logged in')
 
-    const { error } = await getSupabase()
+    const { error } = await supabase
       .from('profiles')
       .update(updates)
       .eq('id', user.id)
@@ -91,7 +86,7 @@ export function useUser() {
     if (error) throw error
 
     // Reload profile
-    const { data } = await getSupabase()
+    const { data } = await supabase
       .from('profiles')
       .select('*')
       .eq('id', user.id)
