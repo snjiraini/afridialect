@@ -17,6 +17,7 @@ function LoginForm() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  const [credsOpen, setCredsOpen] = useState(false)
 
   useEffect(() => {
     if (searchParams.get('email') || searchParams.get('password')) {
@@ -105,6 +106,98 @@ function LoginForm() {
               Create one
             </Link>
           </p>
+        </div>
+
+        {/* ── Test credentials panel ── */}
+        <div style={{ marginTop: '28px' }}>
+          <button
+            type="button"
+            onClick={(e) => { e.preventDefault(); e.stopPropagation(); setCredsOpen(o => !o) }}
+            style={{
+              display: 'flex', alignItems: 'center', gap: '8px',
+              width: '100%', padding: '12px 16px',
+              borderRadius: '14px',
+              border: '1px solid rgba(45,212,191,0.22)',
+              background: 'rgba(45,212,191,0.06)',
+              color: '#2dd4bf', fontSize: '12px', fontWeight: 600,
+              textTransform: 'uppercase', letterSpacing: '0.12em',
+              cursor: 'pointer', justifyContent: 'space-between',
+              fontFamily: 'inherit', transition: 'background 160ms ease, border-color 160ms ease',
+            }}
+            onMouseEnter={e => { e.currentTarget.style.background = 'rgba(45,212,191,0.10)'; e.currentTarget.style.borderColor = 'rgba(45,212,191,0.40)' }}
+            onMouseLeave={e => { e.currentTarget.style.background = 'rgba(45,212,191,0.06)'; e.currentTarget.style.borderColor = 'rgba(45,212,191,0.22)' }}
+          >
+            <span>🧪 Test credentials</span>
+            <span style={{ fontSize: '16px', lineHeight: 1 }}>{credsOpen ? '▲' : '▼'}</span>
+          </button>
+
+          {credsOpen && (
+            <div style={{
+              marginTop: '8px',
+              borderRadius: '14px',
+              border: '1px solid rgba(255,255,255,0.06)',
+              background: 'rgba(7,11,26,0.97)',
+              overflow: 'hidden',
+            }}>
+              {/* Header */}
+              <div style={{
+                display: 'grid', gridTemplateColumns: '96px 1fr',
+                padding: '8px 14px', fontSize: '10px',
+                textTransform: 'uppercase', letterSpacing: '0.13em',
+                color: '#7c84af', borderBottom: '1px solid rgba(255,255,255,0.05)',
+              }}>
+                <span>Role</span>
+                <span>Email · Password</span>
+              </div>
+              {[
+                { role: 'Uploader',    email: 'uploader@afridialect.local',    password: 'UploaderPass123!',    color: '#f5b55d', bg: 'rgba(245,181,93,0.12)',   border: 'rgba(245,181,93,0.3)'  },
+                { role: 'Transcriber', email: 'transcriber@afridialect.local', password: 'TranscriberPass123!', color: '#fb923c', bg: 'rgba(251,146,60,0.12)',   border: 'rgba(251,146,60,0.3)'  },
+                { role: 'Translator',  email: 'translator@afridialect.local',  password: 'TranslatorPass123!',  color: '#a78bfa', bg: 'rgba(167,139,250,0.12)',  border: 'rgba(167,139,250,0.3)' },
+                { role: 'Reviewer',    email: 'reviewer@afridialect.local',    password: 'ReviewerPass123!',    color: '#2dd4bf', bg: 'rgba(45,212,191,0.12)',   border: 'rgba(45,212,191,0.3)'  },
+                { role: 'Buyer',       email: 'buyer@afridialect.local',       password: 'BuyerPass123!',       color: '#60a5fa', bg: 'rgba(96,165,250,0.12)',   border: 'rgba(96,165,250,0.3)'  },
+                { role: 'Admin',       email: 'admin@afridialect.local',       password: 'AdminPass123!',       color: '#f472b6', bg: 'rgba(244,114,182,0.12)',  border: 'rgba(244,114,182,0.3)' },
+              ].map((cred, i, arr) => (
+                <button
+                  key={cred.role}
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    setEmail(cred.email)
+                    setPassword(cred.password)
+                    setCredsOpen(false)
+                  }}
+                  title={`Fill in ${cred.role} credentials`}
+                  style={{
+                    display: 'grid', gridTemplateColumns: '96px 1fr',
+                    alignItems: 'center', width: '100%',
+                    padding: '10px 14px', gap: '8px',
+                    background: 'transparent', border: 'none',
+                    borderBottom: i < arr.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none',
+                    cursor: 'pointer', textAlign: 'left',
+                    fontFamily: 'inherit', transition: 'background 120ms ease',
+                  }}
+                  onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.04)' }}
+                  onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}
+                >
+                  <span style={{
+                    display: 'inline-block', borderRadius: '999px',
+                    padding: '2px 8px', fontSize: '10px', fontWeight: 700,
+                    textTransform: 'uppercase', letterSpacing: '0.1em',
+                    background: cred.bg, color: cred.color,
+                    border: `1px solid ${cred.border}`,
+                  }}>{cred.role}</span>
+                  <div>
+                    <div style={{ fontSize: '11px', color: '#a8b0d8', fontFamily: 'monospace' }}>{cred.email}</div>
+                    <div style={{ fontSize: '11px', color: '#f7f8ff', fontFamily: 'monospace', marginTop: '2px' }}>{cred.password}</div>
+                  </div>
+                </button>
+              ))}
+              <div style={{ padding: '8px 14px', fontSize: '10px', color: '#7c84af', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+                Click any row to auto-fill the login form ↑
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>

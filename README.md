@@ -13,7 +13,7 @@
 
 ## Overview
 
-Afridialect.ai enables contributors to upload, transcribe, and translate short audio clips of real speech in African local dialects — starting with **Kikuyu and Swahili** (Kenya). Every clip passes through a structured human-in-the-loop quality control pipeline before it is monetised. Contributors earn HBAR at each stage they complete. Buyers can purchase ML-ready dataset packages assembled on demand from IPFS.
+Afridialect enables contributors to upload, transcribe, and translate short audio clips of real speech in African local dialects — starting with **Kikuyu and Swahili** (Kenya). Every clip passes through a structured human-in-the-loop quality control pipeline before it is monetised. Contributors earn HBAR at each stage they complete. Buyers can purchase ML-ready dataset packages assembled on demand from IPFS.
 
 Key capabilities:
 

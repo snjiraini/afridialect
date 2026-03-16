@@ -382,6 +382,223 @@ export default function Home() {
           </div>
         </section>
 
+        {/* ── QC Pipeline ── */}
+        <motion.section
+          className="mt-[72px]"
+          initial="hidden"
+          whileInView="visible"
+          viewport={{ once: true, amount: 0.2 }}
+          variants={sectionVariants}
+          custom={0}
+          id="qc-pipeline"
+        >
+          <div
+            className="rounded-[28px] border border-[rgba(148,163,184,0.26)]"
+            style={{
+              padding: '28px 24px 26px',
+              background: [
+                'radial-gradient(circle at 0% 0%,rgba(245,181,93,0.08),transparent 60%)',
+                'radial-gradient(circle at 100% 100%,rgba(45,212,191,0.10),transparent 60%)',
+                'rgba(8,11,24,0.95)',
+              ].join(', '),
+              boxShadow: '0 24px 80px rgba(0,0,0,0.7)',
+            }}
+          >
+            <div className="max-w-[40rem]">
+              <p className="text-[12px] tracking-[0.12em] uppercase text-[#2dd4bf]">Quality control pipeline</p>
+              <h2 className="mt-2 mb-[10px] text-[26px] tracking-[-0.02em] text-[#f7f8ff]">Multi-step verification before every dataset ships.</h2>
+              <p className="m-0 text-[14px] leading-[1.7] text-[#a8b0d8]">
+                Every audio contribution passes through a structured review chain — each step handled by a dedicated role — before it is tokenised and listed on the marketplace.
+              </p>
+            </div>
+
+            {/* Pipeline flow */}
+            <div
+              className="mt-[26px] flex flex-wrap items-stretch gap-[10px]"
+              style={{ overflowX: 'auto' }}
+            >
+              {[
+                { step: '01', title: 'Upload',           role: 'Uploader', color: '#f5b55d', roleColor: 'rgba(245,181,93,0.15)',  roleBorder: 'rgba(245,181,93,0.35)',  desc: 'Native speaker records and uploads raw audio with dialect and region metadata.' },
+                { step: '02', title: 'Audio QC',         role: 'Reviewer', color: '#2dd4bf', roleColor: 'rgba(45,212,191,0.15)',  roleBorder: 'rgba(45,212,191,0.35)',  desc: 'Reviewer checks audio clarity, background noise, and recording fidelity before transcription begins.' },
+                { step: '03', title: 'Transcription',    role: 'Transcriber', color: '#fb923c', roleColor: 'rgba(251,146,60,0.15)',  roleBorder: 'rgba(251,146,60,0.35)',  desc: 'Transcriber converts the approved audio into accurate text in the source dialect.' },
+                { step: '04', title: 'Transcript QC',    role: 'Reviewer', color: '#2dd4bf', roleColor: 'rgba(45,212,191,0.15)',  roleBorder: 'rgba(45,212,191,0.35)',  desc: 'Reviewer validates transcription accuracy and completeness against the source audio.' },
+                { step: '05', title: 'Translation',      role: 'Translator', color: '#a78bfa', roleColor: 'rgba(167,139,250,0.15)', roleBorder: 'rgba(167,139,250,0.35)', desc: 'Translator produces a validated English or target-language version of the transcript.' },
+                { step: '06', title: 'Translation QC',   role: 'Reviewer', color: '#2dd4bf', roleColor: 'rgba(45,212,191,0.15)',  roleBorder: 'rgba(45,212,191,0.35)',  desc: 'Reviewer confirms translation correctness, contextual accuracy, and idiomatic quality.' },
+                { step: '07', title: 'NFT Minting',      role: 'Admin', color: '#f472b6', roleColor: 'rgba(244,114,182,0.15)', roleBorder: 'rgba(244,114,182,0.35)', desc: 'Admin mints the fully verified dataset as an NFT on Hedera and lists it on the marketplace.' },
+                { step: '08', title: 'Purchase',         role: 'Buyer', color: '#60a5fa', roleColor: 'rgba(96,165,250,0.15)',  roleBorder: 'rgba(96,165,250,0.35)',  desc: 'Buyer acquires the dataset licence via the marketplace and gains immediate download access.' },
+              ].map((item, index) => (
+                <motion.div key={item.step}
+                    className="flex flex-col"
+                    style={{
+                      flex: 1,
+                      borderRadius: '20px',
+                      border: '1px solid rgba(255,255,255,0.06)',
+                      background: 'radial-gradient(circle at 0 0,rgba(248,250,252,0.05),transparent 65%),rgba(7,11,26,0.97)',
+                      padding: '16px 14px 14px',
+                      boxShadow: '0 16px 48px rgba(0,0,0,0.75)',
+                      transition: 'border-color 160ms ease,transform 160ms ease',
+                    }}
+                    initial={{ opacity: 0, y: 24 }}
+                    whileInView={{ opacity: 1, y: 0 }}
+                    viewport={{ once: true, amount: 0.3 }}
+                    transition={{ duration: 0.5, delay: index * 0.07 }}
+                    onMouseEnter={e => {
+                      const el = e.currentTarget as HTMLElement
+                      el.style.transform = 'translateY(-3px)'
+                      el.style.borderColor = item.roleBorder
+                    }}
+                    onMouseLeave={e => {
+                      const el = e.currentTarget as HTMLElement
+                      el.style.transform = ''
+                      el.style.borderColor = 'rgba(255,255,255,0.06)'
+                    }}
+                  >
+                    {/* Step number + arrow */}
+                    <div className="flex items-center justify-between mb-[10px]">
+                      <span
+                        className="text-[10px] tabular-nums tracking-[0.12em] uppercase"
+                        style={{ color: item.color }}
+                      >Step {item.step}</span>
+                      <span style={{ fontSize: '16px', lineHeight: 1 }}>→</span>
+                    </div>
+                    {/* Title */}
+                    <p
+                      className="m-0 mb-[8px] text-[13px] font-semibold text-[#f7f8ff] leading-[1.3]"
+                      style={{ fontFamily: "'Comfortaa',sans-serif" }}
+                    >{item.title}</p>
+                    {/* Description */}
+                    <p className="m-0 text-[11px] leading-[1.6] text-[#7c84af] flex-1">{item.desc}</p>
+                    {/* Role badge */}
+                    <div
+                      className="mt-[12px] inline-flex items-center gap-[5px] rounded-[999px] px-[9px] py-[4px] text-[10px] font-semibold uppercase tracking-[0.1em] self-start"
+                      style={{ background: item.roleColor, color: item.color, border: `1px solid ${item.roleBorder}` }}
+                    >
+                      <span>👤</span>
+                      <span>{item.role}</span>
+                    </div>
+                </motion.div>
+              ))}
+            </div>
+
+            {/* Legend */}
+            <div className="mt-[20px] flex flex-wrap gap-x-[24px] gap-y-[8px] items-center">
+              <span className="text-[11px] uppercase tracking-[0.12em] text-[#7c84af]">Roles:</span>
+              {[
+                { role: 'Uploader',    color: '#f5b55d', bg: 'rgba(245,181,93,0.12)',   border: 'rgba(245,181,93,0.3)'  },
+                { role: 'Reviewer',    color: '#2dd4bf', bg: 'rgba(45,212,191,0.12)',   border: 'rgba(45,212,191,0.3)'  },
+                { role: 'Transcriber', color: '#fb923c', bg: 'rgba(251,146,60,0.12)',   border: 'rgba(251,146,60,0.3)'  },
+                { role: 'Translator',  color: '#a78bfa', bg: 'rgba(167,139,250,0.12)',  border: 'rgba(167,139,250,0.3)' },
+                { role: 'Admin',       color: '#f472b6', bg: 'rgba(244,114,182,0.12)',  border: 'rgba(244,114,182,0.3)' },
+                { role: 'Buyer',       color: '#60a5fa', bg: 'rgba(96,165,250,0.12)',   border: 'rgba(96,165,250,0.3)'  },
+              ].map(r => (
+                <span
+                  key={r.role}
+                  className="inline-flex items-center gap-[5px] rounded-[999px] px-[9px] py-[3px] text-[10px] font-semibold uppercase tracking-[0.1em]"
+                  style={{ background: r.bg, color: r.color, border: `1px solid ${r.border}` }}
+                >👤 {r.role}</span>
+              ))}
+            </div>
+          </div>
+        </motion.section>
+
+        {/* ── Test Credentials ── */}
+        <motion.section
+          className="mt-[72px]"
+          initial="hidden"
+          whileInView="visible"
+          viewport={{ once: true, amount: 0.2 }}
+          variants={sectionVariants}
+          custom={1}
+          id="test-credentials"
+        >
+          <div
+            className="rounded-[28px] border"
+            style={{
+              padding: '28px 24px 26px',
+              borderColor: 'rgba(45,212,191,0.25)',
+              background: [
+                'radial-gradient(circle at 0% 0%,rgba(45,212,191,0.06),transparent 55%)',
+                'radial-gradient(circle at 100% 100%,rgba(245,181,93,0.06),transparent 55%)',
+                'rgba(5,8,18,0.97)',
+              ].join(', '),
+              boxShadow: '0 24px 80px rgba(0,0,0,0.7)',
+            }}
+          >
+            <div className="flex items-start justify-between flex-wrap gap-3 mb-[22px]">
+              <div>
+                <p className="text-[12px] tracking-[0.12em] uppercase text-[#2dd4bf] m-0">Developer access</p>
+                <h2 className="mt-2 mb-[6px] text-[26px] tracking-[-0.02em] text-[#f7f8ff] m-0">Test credentials</h2>
+                <p className="m-0 text-[14px] leading-[1.7] text-[#a8b0d8] max-w-[38rem]">
+                  Use these pre-seeded accounts to explore each role in the platform without creating a new account.
+                  All accounts use the testnet environment — no real funds are involved.
+                </p>
+              </div>
+              <div
+                className="inline-flex items-center gap-[6px] rounded-[999px] px-[12px] py-[6px] text-[11px] font-semibold"
+                style={{ background: 'rgba(45,212,191,0.10)', color: '#2dd4bf', border: '1px solid rgba(45,212,191,0.28)' }}
+              >🧪 Dev / Testnet only</div>
+            </div>
+
+            {/* Credentials table */}
+            <div
+              className="rounded-[16px] overflow-hidden border border-[rgba(255,255,255,0.06)]"
+              style={{ background: 'rgba(7,11,26,0.97)' }}
+            >
+              {/* Header row */}
+              <div
+                className="grid text-[10px] uppercase tracking-[0.14em] text-[#7c84af] px-[18px] py-[10px]"
+                style={{ gridTemplateColumns: '110px 1fr 1fr', borderBottom: '1px solid rgba(255,255,255,0.05)' }}
+              >
+                <span>Role</span>
+                <span>Email</span>
+                <span>Password</span>
+              </div>
+              {[
+                { role: 'Uploader',    email: 'uploader@afridialect.local',    password: 'UploaderPass123!',    color: '#f5b55d', bg: 'rgba(245,181,93,0.12)',   border: 'rgba(245,181,93,0.3)'  },
+                { role: 'Transcriber', email: 'transcriber@afridialect.local', password: 'TranscriberPass123!', color: '#fb923c', bg: 'rgba(251,146,60,0.12)',   border: 'rgba(251,146,60,0.3)'  },
+                { role: 'Translator',  email: 'translator@afridialect.local',  password: 'TranslatorPass123!',  color: '#a78bfa', bg: 'rgba(167,139,250,0.12)',  border: 'rgba(167,139,250,0.3)' },
+                { role: 'Reviewer',    email: 'reviewer@afridialect.local',    password: 'ReviewerPass123!',    color: '#2dd4bf', bg: 'rgba(45,212,191,0.12)',   border: 'rgba(45,212,191,0.3)'  },
+                { role: 'Buyer',       email: 'buyer@afridialect.local',       password: 'BuyerPass123!',       color: '#60a5fa', bg: 'rgba(96,165,250,0.12)',   border: 'rgba(96,165,250,0.3)'  },
+                { role: 'Admin',       email: 'admin@afridialect.local',       password: 'AdminPass123!',       color: '#f472b6', bg: 'rgba(244,114,182,0.12)',  border: 'rgba(244,114,182,0.3)' },
+              ].map((cred, i, arr) => (
+                <div
+                  key={cred.role}
+                  className="grid items-center px-[18px] py-[13px]"
+                  style={{
+                    gridTemplateColumns: '110px 1fr 1fr',
+                    borderBottom: i < arr.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none',
+                    transition: 'background 160ms ease',
+                  }}
+                  onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.03)' }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent' }}
+                >
+                  {/* Role badge */}
+                  <div>
+                    <span
+                      className="inline-flex items-center gap-[5px] rounded-[999px] px-[9px] py-[3px] text-[10px] font-semibold uppercase tracking-[0.1em]"
+                      style={{ background: cred.bg, color: cred.color, border: `1px solid ${cred.border}` }}
+                    >{cred.role}</span>
+                  </div>
+                  {/* Email */}
+                  <span
+                    className="text-[12px] text-[#a8b0d8]"
+                    style={{ fontFamily: "'SF Mono','Fira Code','Fira Mono','Roboto Mono',monospace' " }}
+                  >{cred.email}</span>
+                  {/* Password */}
+                  <span
+                    className="text-[12px] text-[#f7f8ff]"
+                    style={{ fontFamily: "'SF Mono','Fira Code','Fira Mono','Roboto Mono',monospace' " }}
+                  >{cred.password}</span>
+                </div>
+              ))}
+            </div>
+
+            <p className="mt-[14px] m-0 text-[12px] text-[#7c84af]">
+              💡 On the login page, click any row to auto-fill the email and password fields.
+            </p>
+          </div>
+        </motion.section>
+
         {/* ── How it works ── */}
         <motion.section
           className="mt-[72px]"
@@ -389,7 +606,7 @@ export default function Home() {
           whileInView="visible"
           viewport={{ once: true, amount: 0.3 }}
           variants={sectionVariants}
-          custom={0}
+          custom={2}
           id="how-it-works"
         >
           {/* Section shell */}
@@ -714,7 +931,7 @@ export default function Home() {
           whileInView="visible"
           viewport={{ once: true, amount: 0.3 }}
           variants={sectionVariants}
-          custom={3}
+          custom={5}
           id="get-started"
         >
           <div
